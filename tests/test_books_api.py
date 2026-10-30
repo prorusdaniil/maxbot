@@ -12,39 +12,58 @@ def patch_http(monkeypatch, handler):
     monkeypatch.setattr(books_api.httpx, "AsyncClient", lambda **kw: real_client(transport=transport, **kw))
 
 
-def test_feature_request_passes_book_paragraph_and_action(monkeypatch):
+@pytest.mark.parametrize(
+    ("feature", "path", "payload", "expected"),
+    [
+        ("summary", "summary", {"summary": " Пересказ "}, "Пересказ"),
+        ("theses", "main_points", {"main_points": ["Один", " Два "]}, "1. Один\n\n2. Два"),
+        ("answers", "answers", {"answers": ["Ответ"]}, "1. Ответ"),
+    ],
+)
+def test_feature_uses_own_endpoint_and_field(monkeypatch, feature, path, payload, expected):
     seen = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        seen.update(request.url.params)
-        return httpx.Response(200, json={"bookId": 3, "title": "Параграф", "parts": []})
+        seen["path"] = request.url.path
+        seen["params"] = dict(request.url.params)
+        return httpx.Response(200, json=payload)
 
     patch_http(monkeypatch, handler)
 
-    text = asyncio.run(books_api.fetch_feature_text(3, 2, "summary"))
+    text = asyncio.run(books_api.fetch_feature_text(3, 2, feature))
 
-    assert seen == {"bookId": "3", "paragraphId": "2", "action": "summary"}
-    assert "скоро появится" in text
+    assert seen == {"path": f"/book-parser/api.php/{path}", "params": {"bookId": "3", "paragraphId": "2"}}
+    assert text == expected
 
 
-@pytest.mark.parametrize("status", [404, 501])
-def test_feature_stub_on_missing_endpoint(monkeypatch, status):
+@pytest.mark.parametrize("feature", ["summary", "answers", "theses"])
+def test_feature_missing_data_returns_explanation(monkeypatch, feature):
+    patch_http(monkeypatch, lambda request: httpx.Response(404, json={"error": "Data not found"}))
+
+    assert "пока нет" in asyncio.run(books_api.fetch_feature_text(3, 2, feature))
+
+
+@pytest.mark.parametrize("payload", [{}, {"answers": []}, {"answers": [" "]}])
+def test_feature_empty_data_returns_explanation(monkeypatch, payload):
+    patch_http(monkeypatch, lambda request: httpx.Response(200, json=payload))
+
+    assert "пока нет" in asyncio.run(books_api.fetch_feature_text(3, 2, "answers"))
+
+
+@pytest.mark.parametrize("payload", [{"answers": "строка"}, {"answers": [1]}, ["x"]])
+def test_feature_malformed_data_raises(monkeypatch, payload):
+    patch_http(monkeypatch, lambda request: httpx.Response(200, json=payload))
+
+    with pytest.raises(ValueError):
+        asyncio.run(books_api.fetch_feature_text(3, 2, "answers"))
+
+
+@pytest.mark.parametrize("status", [400, 500])
+def test_feature_server_error_propagates(monkeypatch, status):
     patch_http(monkeypatch, lambda request: httpx.Response(status))
-
-    assert "скоро появится" in asyncio.run(books_api.fetch_feature_text(3, 2, "theses"))
-
-
-def test_feature_server_error_propagates(monkeypatch):
-    patch_http(monkeypatch, lambda request: httpx.Response(500))
 
     with pytest.raises(httpx.HTTPStatusError):
         asyncio.run(books_api.fetch_feature_text(3, 2, "theses"))
-
-
-def test_feature_returns_text_when_endpoint_exists(monkeypatch):
-    patch_http(monkeypatch, lambda request: httpx.Response(200, json={"text": " Пересказ "}))
-
-    assert asyncio.run(books_api.fetch_feature_text(3, 2, "summary")) == "Пересказ"
 
 
 def test_books_are_cached(monkeypatch):

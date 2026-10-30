@@ -5,15 +5,20 @@ from dataclasses import dataclass
 class Feature:
     key: str
     button_title: str
-    stub_title: str
+    endpoint: str
+    is_list: bool
+    missing_text: str
 
 
-# Функции, которые обслуживает API книги через параметр action. Эндпоинты пока не созданы.
+# Каждая функция обслуживается отдельным эндпоинтом API; ответ: {"<endpoint>": текст | [строки]}.
 API_FEATURES: dict[str, Feature] = {
     feature.key: feature
     for feature in (
-        Feature("summary", "Пересказ простыми словами", "Пересказ параграфа"),
-        Feature("answers", "Ответы на вопросы учебника", "Ответы на вопросы по учебнику"),
-        Feature("theses", "Основные тезисы", "Основные тезисы параграфа"),
+        Feature("summary", "Пересказ простыми словами", "summary", False,
+                "Для этого параграфа пока нет пересказа."),
+        Feature("answers", "Ответы на вопросы учебника", "answers", True,
+                "Для этого параграфа пока нет ответов на вопросы."),
+        Feature("theses", "Основные тезисы", "main_points", True,
+                "Для этого параграфа пока нет тезисов."),
     )
 }

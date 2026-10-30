@@ -55,22 +55,19 @@ async def fetch_paragraph(book_id: int, paragraph_id: int) -> tuple[str, str]:
 
 
 async def fetch_feature_text(book_id: int, paragraph_id: int, feature: str) -> str:
-    """Запрашивает у API готовый текст функции; пока эндпоинт не создан, возвращает заглушку."""
-    stub = f"{API_FEATURES[feature].stub_title}: функция скоро появится."
+    """Запрашивает у API пересказ, ответы или тезисы параграфа; если данных нет, возвращает пояснение."""
+    spec = API_FEATURES[feature]
     try:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             response = await client.get(
-                BOOK_API_URL,
-                params={"bookId": book_id, "paragraphId": paragraph_id, "action": feature},
+                f"{BOOK_API_URL}/{spec.endpoint}",
+                params={"bookId": book_id, "paragraphId": paragraph_id},
             )
             response.raise_for_status()
             data = response.json()
     except httpx.HTTPStatusError as error:
-        if error.response.status_code in (404, 501):
-            return stub
+        if error.response.status_code == 404:
+            return spec.missing_text
         raise
-    except ValueError:
-        return stub
 
-    # Пока API игнорирует action и возвращает сам параграф без поля text.
-    return parse_feature_text(data) or stub
+    return parse_feature_text(data, spec.endpoint, spec.is_list) or spec.missing_text

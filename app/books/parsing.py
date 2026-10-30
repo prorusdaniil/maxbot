@@ -45,8 +45,22 @@ def parse_books(data: object) -> dict[int, str]:
     return books
 
 
-def parse_feature_text(data: object) -> str | None:
-    """Контракт будущих эндпоинтов: {"text": "..."}; иначе None (эндпоинт ещё не реализован)."""
-    if isinstance(data, dict) and isinstance(data.get("text"), str) and data["text"].strip():
-        return data["text"].strip()
-    return None
+def parse_feature_text(data: object, field: str, is_list: bool) -> str | None:
+    """Достаёт из ответа API текст (summary) или список строк (main_points, answers); пусто -> None."""
+    if not isinstance(data, dict):
+        raise ParagraphAPIError("API вернуло ответ не в формате JSON-объекта")
+    value = data.get(field)
+    if value is None:
+        return None
+
+    if not is_list:
+        if not isinstance(value, str):
+            raise ParagraphAPIError(f"Поле {field} должно быть строкой")
+        return value.strip() or None
+
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ParagraphAPIError(f"Поле {field} должно быть массивом строк")
+    items = [item.strip() for item in value if item.strip()]
+    if not items:
+        return None
+    return "\n\n".join(f"{number}. {item}" for number, item in enumerate(items, 1))
