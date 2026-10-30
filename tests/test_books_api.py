@@ -79,7 +79,7 @@ def test_books_are_cached(monkeypatch):
     second = asyncio.run(books_api.fetch_books())
 
     assert first == second == {3: "История 6 класс"}
-    assert calls == ["https://counters.goweb.kz/bookparser/api/books"]
+    assert calls == ["https://counters.goweb.kz/book-parser/api/books"]
 
 
 def test_books_failure_without_cache_raises(monkeypatch):

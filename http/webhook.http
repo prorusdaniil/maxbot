@@ -1,0 +1,610 @@
+### Тестовые вебхуки MAX для локального бота (dev-режим)
+# Запуск бота:  python -m dev        (см. README, раздел «Проверка без токенов»)
+# Формат тел запросов повторяет обновления Bot API MAX: update_type = message_created | message_callback.
+# Работает в VS Code (REST Client) и JetBrains HTTP Client. Выполняйте запросы по порядку:
+# состояние диалога хранится в памяти бота.
+#
+# Ответы бота (то, что он отправил бы в MAX) печатаются в консоли dev-сервера,
+# запросы к LLM — в файле logs/llm.log.
+
+@host = http://127.0.0.1:8080
+@secret = dev-secret
+
+### 1. Текст: команда /start (бот покажет список книг)
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_created",
+  "timestamp": 1761835990000,
+  "message": {
+    "sender": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 1000
+    },
+    "timestamp": 1761835990000,
+    "body": {
+      "mid": "mid.dev.user.1",
+      "seq": 1,
+      "text": "/start"
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 2. Кнопка: выбор книги (payload book:3 — «История 6 класс» в каталоге API)
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836000000,
+  "callback": {
+    "timestamp": 1761836000000,
+    "callback_id": "cb.dev.2",
+    "payload": "book:3",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836000000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761835995000,
+    "body": {
+      "mid": "mid.dev.bot.2",
+      "seq": 2,
+      "text": "Привет! Выбери книгу:",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "История 6 класс", "payload": "book:3" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 3. Текст: номер параграфа (в каталоге есть параграфы 1 и 2)
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_created",
+  "timestamp": 1761836010000,
+  "message": {
+    "sender": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 1000
+    },
+    "timestamp": 1761836010000,
+    "body": {
+      "mid": "mid.dev.user.3",
+      "seq": 3,
+      "text": "1"
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 4. Кнопка: пересказ простыми словами
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836020000,
+  "callback": {
+    "timestamp": 1761836020000,
+    "callback_id": "cb.dev.4",
+    "payload": "feature:summary",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836020000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761836015000,
+    "body": {
+      "mid": "mid.dev.bot.4",
+      "seq": 4,
+      "text": "Параграф загружен. Выбери действие:",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "Пересказ простыми словами", "payload": "feature:summary" }],
+            [{ "type": "callback", "text": "Ответы на вопросы учебника", "payload": "feature:answers" }],
+            [{ "type": "callback", "text": "Основные тезисы", "payload": "feature:theses" }],
+            [{ "type": "callback", "text": "Тест по теме", "payload": "quiz" }],
+            [{ "type": "callback", "text": "Обсудить параграф", "payload": "discuss" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 5. Кнопка: ответы на вопросы учебника
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836030000,
+  "callback": {
+    "timestamp": 1761836030000,
+    "callback_id": "cb.dev.5",
+    "payload": "feature:answers",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836030000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761836025000,
+    "body": {
+      "mid": "mid.dev.bot.5",
+      "seq": 5,
+      "text": "Параграф загружен. Выбери действие:",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "Пересказ простыми словами", "payload": "feature:summary" }],
+            [{ "type": "callback", "text": "Ответы на вопросы учебника", "payload": "feature:answers" }],
+            [{ "type": "callback", "text": "Основные тезисы", "payload": "feature:theses" }],
+            [{ "type": "callback", "text": "Тест по теме", "payload": "quiz" }],
+            [{ "type": "callback", "text": "Обсудить параграф", "payload": "discuss" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 6. Кнопка: основные тезисы
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836040000,
+  "callback": {
+    "timestamp": 1761836040000,
+    "callback_id": "cb.dev.6",
+    "payload": "feature:theses",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836040000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761836035000,
+    "body": {
+      "mid": "mid.dev.bot.6",
+      "seq": 6,
+      "text": "Параграф загружен. Выбери действие:",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "Пересказ простыми словами", "payload": "feature:summary" }],
+            [{ "type": "callback", "text": "Ответы на вопросы учебника", "payload": "feature:answers" }],
+            [{ "type": "callback", "text": "Основные тезисы", "payload": "feature:theses" }],
+            [{ "type": "callback", "text": "Тест по теме", "payload": "quiz" }],
+            [{ "type": "callback", "text": "Обсудить параграф", "payload": "discuss" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 7. Кнопка: «Тест по теме» (запрос к LLM, вопрос теста)
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836050000,
+  "callback": {
+    "timestamp": 1761836050000,
+    "callback_id": "cb.dev.7",
+    "payload": "quiz",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836050000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761836045000,
+    "body": {
+      "mid": "mid.dev.bot.7",
+      "seq": 7,
+      "text": "Параграф загружен. Выбери действие:",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "Пересказ простыми словами", "payload": "feature:summary" }],
+            [{ "type": "callback", "text": "Ответы на вопросы учебника", "payload": "feature:answers" }],
+            [{ "type": "callback", "text": "Основные тезисы", "payload": "feature:theses" }],
+            [{ "type": "callback", "text": "Тест по теме", "payload": "quiz" }],
+            [{ "type": "callback", "text": "Обсудить параграф", "payload": "discuss" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 8. Кнопка теста: отметить вариант 1
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836060000,
+  "callback": {
+    "timestamp": 1761836060000,
+    "callback_id": "cb.dev.8",
+    "payload": "quiz:toggle:0",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836060000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761836055000,
+    "body": {
+      "mid": "mid.dev.bot.8",
+      "seq": 8,
+      "text": "Тест",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "☐ 1", "payload": "quiz:toggle:0" }],
+            [{ "type": "callback", "text": "Проверить", "payload": "quiz:check" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 9. Кнопка теста: отметить вариант 3
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836070000,
+  "callback": {
+    "timestamp": 1761836070000,
+    "callback_id": "cb.dev.9",
+    "payload": "quiz:toggle:2",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836070000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761836065000,
+    "body": {
+      "mid": "mid.dev.bot.9",
+      "seq": 9,
+      "text": "Тест",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "☐ 1", "payload": "quiz:toggle:0" }],
+            [{ "type": "callback", "text": "Проверить", "payload": "quiz:check" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 10. Кнопка теста: «Проверить»
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836080000,
+  "callback": {
+    "timestamp": 1761836080000,
+    "callback_id": "cb.dev.10",
+    "payload": "quiz:check",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836080000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761836075000,
+    "body": {
+      "mid": "mid.dev.bot.10",
+      "seq": 10,
+      "text": "Тест",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "☐ 1", "payload": "quiz:toggle:0" }],
+            [{ "type": "callback", "text": "Проверить", "payload": "quiz:check" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 11. Кнопка: «Обсудить параграф»
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836090000,
+  "callback": {
+    "timestamp": 1761836090000,
+    "callback_id": "cb.dev.11",
+    "payload": "discuss",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836090000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761836085000,
+    "body": {
+      "mid": "mid.dev.bot.11",
+      "seq": 11,
+      "text": "Что дальше?",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "Пересказ простыми словами", "payload": "feature:summary" }],
+            [{ "type": "callback", "text": "Ответы на вопросы учебника", "payload": "feature:answers" }],
+            [{ "type": "callback", "text": "Основные тезисы", "payload": "feature:theses" }],
+            [{ "type": "callback", "text": "Тест по теме", "payload": "quiz" }],
+            [{ "type": "callback", "text": "Обсудить параграф", "payload": "discuss" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 12. Текст: вопрос по параграфу (запрос к LLM)
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_created",
+  "timestamp": 1761836100000,
+  "message": {
+    "sender": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 1000
+    },
+    "timestamp": 1761836100000,
+    "body": {
+      "mid": "mid.dev.user.12",
+      "seq": 12,
+      "text": "Как первобытные люди обходились без наличных денег?"
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 13. Кнопка: «В меню»
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761836110000,
+  "callback": {
+    "timestamp": 1761836110000,
+    "callback_id": "cb.dev.13",
+    "payload": "menu",
+    "user": {
+        "user_id": 111222333,
+        "first_name": "Иван",
+        "last_name": "Петров",
+        "username": "ivan_petrov",
+        "is_bot": false,
+        "last_activity_time": 1761835980000
+      }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761836110000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761836105000,
+    "body": {
+      "mid": "mid.dev.bot.13",
+      "seq": 13,
+      "text": "Задай ещё вопрос или вернись в меню.",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+            [{ "type": "callback", "text": "В меню", "payload": "menu" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
