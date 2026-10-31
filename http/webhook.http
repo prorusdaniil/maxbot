@@ -42,7 +42,56 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 2. Кнопка: выбор книги (payload book:3 — «История 6 класс» в каталоге API)
+### 2. Кнопка: случайный факт (можно нажать сразу после /start)
+POST {{host}}/webhook
+Content-Type: application/json
+X-Max-Bot-Api-Secret: {{secret}}
+
+{
+  "update_type": "message_callback",
+  "timestamp": 1761835995000,
+  "callback": {
+    "timestamp": 1761835995000,
+    "callback_id": "cb.dev.random_fact",
+    "payload": "random_fact",
+    "user": {
+      "user_id": 111222333,
+      "first_name": "Иван",
+      "last_name": "Петров",
+      "username": "ivan_petrov",
+      "is_bot": false,
+      "last_activity_time": 1761835980000
+    }
+  },
+  "message": {
+    "sender": { "user_id": 1000, "first_name": "Dev Bot", "username": "dev_bot", "is_bot": true, "last_activity_time": 1761835990000 },
+    "recipient": {
+      "chat_id": 555666777,
+      "chat_type": "dialog",
+      "user_id": 111222333
+    },
+    "timestamp": 1761835990000,
+    "body": {
+      "mid": "mid.dev.bot.1",
+      "seq": 1,
+      "text": "Привет! Выбери книгу:",
+      "attachments": [
+        {
+          "type": "inline_keyboard",
+          "payload": {
+            "buttons": [
+              [{ "type": "callback", "text": "Случайный факт", "payload": "random_fact" }],
+              [{ "type": "callback", "text": "История 6 класс", "payload": "book:3" }]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "user_locale": "ru"
+}
+
+### 3. Кнопка: выбор книги (payload book:3 — «История 6 класс» в каталоге API)
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -90,7 +139,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 3. Текст: номер параграфа (в каталоге есть параграфы 1 и 2)
+### 4. Текст: номер параграфа (в каталоге есть параграфы 1 и 2)
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -122,7 +171,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 4. Кнопка: пересказ простыми словами
+### 5. Кнопка: пересказ простыми словами
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -174,7 +223,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 5. Кнопка: ответы на вопросы учебника
+### 6. Кнопка: ответы на вопросы учебника
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -226,7 +275,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 6. Кнопка: основные тезисы
+### 7. Кнопка: основные тезисы
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -278,7 +327,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 7. Кнопка: «Тест по теме» (запрос к LLM, вопрос теста)
+### 8. Кнопка: «Тест по теме» (запрос к LLM, вопрос теста)
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -330,7 +379,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 8. Кнопка теста: отметить вариант 1
+### 9. Кнопка теста: отметить вариант 1
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -379,7 +428,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 9. Кнопка теста: отметить вариант 3
+### 10. Кнопка теста: отметить вариант 3
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -428,7 +477,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 10. Кнопка теста: «Проверить»
+### 11. Кнопка теста: «Проверить»
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -477,7 +526,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 11. Кнопка: «Обсудить параграф»
+### 12. Кнопка: «Обсудить параграф»
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -529,7 +578,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 12. Текст: вопрос по параграфу (запрос к LLM)
+### 13. Текст: вопрос по параграфу (запрос к LLM)
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
@@ -561,7 +610,7 @@ X-Max-Bot-Api-Secret: {{secret}}
   "user_locale": "ru"
 }
 
-### 13. Кнопка: «В меню»
+### 14. Кнопка: «В меню»
 POST {{host}}/webhook
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}

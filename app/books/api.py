@@ -3,10 +3,16 @@ import time
 
 import httpx
 
-from app.config import BOOK_API_URL, BOOKS_API_URL, BOOKS_CACHE_TTL, HTTP_TIMEOUT
+from app.config import (
+    BOOK_API_URL,
+    BOOKS_API_URL,
+    BOOKS_CACHE_TTL,
+    HTTP_TIMEOUT,
+    RANDOM_FACT_API_URL,
+)
 
 from .features import API_FEATURES
-from .parsing import parse_books, parse_feature_text, parse_paragraph
+from .parsing import parse_books, parse_feature_text, parse_paragraph, parse_random_fact
 
 logger = logging.getLogger(__name__)
 
@@ -71,3 +77,14 @@ async def fetch_feature_text(book_id: int, paragraph_id: int, feature: str) -> s
         raise
 
     return parse_feature_text(data, spec.endpoint, spec.is_list) or spec.missing_text
+
+
+async def fetch_random_fact() -> str:
+    """Получает случайный факт и имя, к которому он относится."""
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        response = await client.get(RANDOM_FACT_API_URL)
+        response.raise_for_status()
+        data = response.json()
+
+    name, fact = parse_random_fact(data)
+    return f"Случайный факт о {name}:\n{fact}"

@@ -32,6 +32,10 @@ async def callback_handler(event: MessageCallback) -> None:
         await handle_book(user_id, chat_id, payload)
         return
 
+    if payload == "random_fact":
+        await handle_random_fact(chat_id)
+        return
+
     if context is None or context.stage not in ("ready", "discuss") or not context.paragraph_text:
         await messaging.send_text(chat_id, "Сначала загрузи параграф: введи /start и выбери книгу.")
         return
@@ -91,3 +95,14 @@ async def handle_feature(context: UserContext, user_id: int, chat_id: int, featu
 
     await messaging.send_long_text(chat_id, text)
     await messaging.send_menu(chat_id, "Что дальше?")
+
+
+async def handle_random_fact(chat_id: int) -> None:
+    try:
+        text = await books_api.fetch_random_fact()
+    except (httpx.HTTPError, ValueError):
+        logger.exception("Failed to load random fact")
+        await messaging.send_text(chat_id, "Не удалось получить случайный факт. Попробуй позже.")
+        return
+
+    await messaging.send_text(chat_id, text)

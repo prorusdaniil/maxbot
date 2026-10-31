@@ -87,3 +87,26 @@ def test_books_failure_without_cache_raises(monkeypatch):
 
     with pytest.raises(httpx.HTTPStatusError):
         asyncio.run(books_api.fetch_books())
+
+
+def test_random_fact_uses_random_fact_endpoint(monkeypatch):
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"name": "Имя", "fact": "Факт"})
+
+    patch_http(monkeypatch, handler)
+
+    text = asyncio.run(books_api.fetch_random_fact())
+
+    assert seen == {"url": "https://counters.goweb.kz/book-parser/api/random-fact"}
+    assert text == "Случайный факт о Имя:\nФакт"
+
+
+@pytest.mark.parametrize("payload", [{}, {"name": "Имя"}, {"fact": "Факт"}, {"name": " ", "fact": "Факт"}])
+def test_random_fact_rejects_malformed_response(monkeypatch, payload):
+    patch_http(monkeypatch, lambda request: httpx.Response(200, json=payload))
+
+    with pytest.raises(ValueError):
+        asyncio.run(books_api.fetch_random_fact())

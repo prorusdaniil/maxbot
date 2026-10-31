@@ -64,3 +64,17 @@ def parse_feature_text(data: object, field: str, is_list: bool) -> str | None:
     if not items:
         return None
     return "\n\n".join(f"{number}. {item}" for number, item in enumerate(items, 1))
+
+
+def parse_random_fact(data: object) -> tuple[str, str]:
+    """Проверяет ответ API со случайным фактом."""
+    if not isinstance(data, dict):
+        raise ParagraphAPIError("API вернуло ответ не в формате JSON-объекта")
+
+    name = data.get("name")
+    fact = data.get("fact")
+    if not isinstance(name, str) or not name.strip():
+        raise ParagraphAPIError("В ответе API отсутствует имя")
+    if not isinstance(fact, str) or not fact.strip():
+        raise ParagraphAPIError("В ответе API отсутствует факт")
+    return name.strip(), fact.strip()

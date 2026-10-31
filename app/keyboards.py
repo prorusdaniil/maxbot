@@ -7,6 +7,7 @@ from app.quiz import QuizState
 
 def make_books_keyboard(books: dict[int, str]):
     builder = InlineKeyboardBuilder()
+    builder.row(CallbackButton(text="Случайный факт", payload="random_fact"))
     for book_id, title in books.items():
         builder.row(CallbackButton(text=title, payload=f"book:{book_id}"))
     return builder.as_markup()

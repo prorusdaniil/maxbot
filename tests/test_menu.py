@@ -35,7 +35,11 @@ def test_menu_keyboard_has_all_features():
 
 def test_books_keyboard_uses_book_ids():
     keyboard = keyboards.make_books_keyboard({3: "История 6 класс", 4: "Другая"})
-    assert buttons(keyboard) == [("История 6 класс", "book:3"), ("Другая", "book:4")]
+    assert buttons(keyboard) == [
+        ("Случайный факт", "random_fact"),
+        ("История 6 класс", "book:3"),
+        ("Другая", "book:4"),
+    ]
 
 
 def test_parse_books_skips_malformed_items():
@@ -56,7 +60,10 @@ def test_start_shows_books_from_api(monkeypatch):
     asyncio.run(text_handler(event))
 
     assert sessions.get(USER_ID).stage == "choose_book"
-    assert buttons(event.answers[0]["attachments"][0]) == [("История 6 класс", "book:3")]
+    assert buttons(event.answers[0]["attachments"][0]) == [
+        ("Случайный факт", "random_fact"),
+        ("История 6 класс", "book:3"),
+    ]
 
 
 def test_start_with_bot_suffix_is_supported(monkeypatch):
@@ -189,6 +196,34 @@ def test_feature_api_failure_offers_menu(monkeypatch, ready_context, fake_bot):
 
     assert "Не удалось получить данные" in fake_bot.sent[0]["text"]
     assert buttons(fake_bot.sent[0]["attachments"][0]) == [("В меню", "menu")]
+
+
+def test_random_fact_callback_does_not_require_loaded_paragraph(monkeypatch, fake_bot):
+    requested = []
+
+    async def fake_fetch_random_fact():
+        requested.append(True)
+        return "Случайный факт о Н. П. Будашкине:\nНаписал музыку к сказке «Морозко»."
+
+    monkeypatch.setattr(books_api, "fetch_random_fact", fake_fetch_random_fact)
+
+    asyncio.run(callback_handler(FakeCallbackEvent("random_fact")))
+
+    assert requested == [True]
+    assert fake_bot.sent[0]["text"].startswith("Случайный факт о Н. П. Будашкине:")
+    assert len(fake_bot.sent) == 1
+
+
+def test_random_fact_callback_reports_api_failure(monkeypatch, ready_context, fake_bot):
+    async def failing():
+        raise httpx.ConnectError("down")
+
+    monkeypatch.setattr(books_api, "fetch_random_fact", failing)
+
+    asyncio.run(callback_handler(FakeCallbackEvent("random_fact")))
+
+    assert "Не удалось получить случайный факт" in fake_bot.sent[0]["text"]
+    assert fake_bot.sent[0]["attachments"] is None
 
 
 def test_discuss_button_switches_mode(ready_context, fake_bot):
