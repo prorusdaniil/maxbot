@@ -1,6 +1,10 @@
 from maxapi.types import MessageCallback, MessageCreated
 
 
+# MAX отклоняет подтверждение callback без message и без notification (ошибка 400).
+DEFAULT_ACK_NOTIFICATION = "Секунду…"
+
+
 def get_user_and_chat_ids(event: MessageCreated | MessageCallback) -> tuple[int, int]:
     chat_id, user_id = event.get_ids()
     if chat_id is None or user_id is None:

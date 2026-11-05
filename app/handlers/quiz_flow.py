@@ -7,6 +7,8 @@ from app.quiz import QuizGenerationError, format_quiz_text, generate_quiz
 from app.state import UserContext
 from llm import LLMError
 
+from .common import DEFAULT_ACK_NOTIFICATION
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +47,7 @@ async def handle_quiz_callback(
         except ValueError:
             index = -1
         if not 0 <= index < len(quiz.options):
-            await event.ack()
+            await event.ack(DEFAULT_ACK_NOTIFICATION)
             return
         quiz.selected.symmetric_difference_update({index})
         await event.edit(

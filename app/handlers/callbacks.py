@@ -10,7 +10,7 @@ from app.books import api as books_api
 from app.state import UserContext, sessions
 
 from . import quiz_flow
-from .common import get_user_and_chat_ids
+from .common import DEFAULT_ACK_NOTIFICATION, get_user_and_chat_ids
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -26,7 +26,7 @@ async def callback_handler(event: MessageCallback) -> None:
         await quiz_flow.handle_quiz_callback(event, context, chat_id, payload)
         return
 
-    await event.ack()
+    await event.ack(DEFAULT_ACK_NOTIFICATION)
 
     if payload.startswith("book:"):
         await handle_book(user_id, chat_id, payload)

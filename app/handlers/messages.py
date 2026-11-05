@@ -2,7 +2,7 @@ import logging
 
 import httpx
 from maxapi import Router
-from maxapi.types import MessageCreated
+from maxapi.types import BotStarted, MessageCreated
 
 from app import discussion, keyboards, messaging, runtime
 from app.books import api as books_api
@@ -37,19 +37,31 @@ async def text_handler(event: MessageCreated) -> None:
         await handle_paragraph_number(event, context, user_id, chat_id, message_text)
 
 
+@router.bot_started()
+async def bot_started_handler(event: BotStarted) -> None:
+    """Кнопка «Начать» в MAX присылает bot_started, а не текст /start."""
+    chat_id, user_id = event.get_ids()
+    text, keyboard = await prepare_start(user_id)
+    await messaging.send_text(chat_id, text, keyboard)
+
+
 async def handle_start(event: MessageCreated) -> None:
     user_id, _ = get_user_and_chat_ids(event)
+    text, keyboard = await prepare_start(user_id)
+    await event.message.answer(
+        text, attachments=[keyboard] if keyboard is not None else None
+    )
+
+
+async def prepare_start(user_id: int):
+    """Сбрасывает диалог и возвращает приветствие с клавиатурой выбора книги."""
     sessions.set(user_id, UserContext(stage="choose_book"))
     try:
         books = await books_api.fetch_books()
     except (httpx.HTTPError, ValueError):
         logger.exception("Failed to load book list")
-        await event.message.answer("Не удалось загрузить список книг. Попробуй /start позже.")
-        return
-    await event.message.answer(
-        "Привет! Выбери книгу:",
-        attachments=[keyboards.make_books_keyboard(books)],
-    )
+        return "Не удалось загрузить список книг. Попробуй /start позже.", None
+    return "Привет! Выбери книгу:", keyboards.make_books_keyboard(books)
 
 
 async def handle_paragraph_number(

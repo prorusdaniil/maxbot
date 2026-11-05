@@ -1,4 +1,5 @@
 import asyncio
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -8,7 +9,8 @@ from app import keyboards
 from app.books import ParagraphAPIError, parse_books
 from app.books import api as books_api
 from app.handlers.callbacks import callback_handler
-from app.handlers.messages import text_handler
+from app.handlers.common import DEFAULT_ACK_NOTIFICATION
+from app.handlers.messages import bot_started_handler, text_handler
 from app.state import UserContext, sessions
 
 MENU_BUTTONS = [
@@ -85,6 +87,20 @@ def test_start_reports_books_api_failure(monkeypatch):
     assert event.answers[0]["attachments"] is None
 
 
+def test_bot_started_shows_books(monkeypatch, fake_bot):
+    patch_books(monkeypatch, {3: "История 6 класс"})
+    event = SimpleNamespace(get_ids=lambda: (CHAT_ID, USER_ID))
+
+    asyncio.run(bot_started_handler(event))
+
+    assert sessions.get(USER_ID).stage == "choose_book"
+    assert fake_bot.sent[0]["chat_id"] == CHAT_ID
+    assert buttons(fake_bot.sent[0]["attachments"][0]) == [
+        ("Случайный факт", "random_fact"),
+        ("История 6 класс", "book:3"),
+    ]
+
+
 def test_book_callback_asks_for_paragraph(monkeypatch, fake_bot):
     patch_books(monkeypatch, {3: "История 6 класс"})
     event = FakeCallbackEvent("book:3")
@@ -93,7 +109,7 @@ def test_book_callback_asks_for_paragraph(monkeypatch, fake_bot):
 
     context = sessions.get(USER_ID)
     assert (context.stage, context.book_id) == ("enter_paragraph", 3)
-    assert event.acks == [None]
+    assert event.acks == [DEFAULT_ACK_NOTIFICATION]
     assert "История 6 класс" in fake_bot.sent[0]["text"]
 
 
@@ -244,5 +260,5 @@ def test_unknown_callback_is_ignored(ready_context, fake_bot):
 
     asyncio.run(callback_handler(event))
 
-    assert event.acks == [None]
+    assert event.acks == [DEFAULT_ACK_NOTIFICATION]
     assert fake_bot.sent == []
