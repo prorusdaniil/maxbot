@@ -32,7 +32,7 @@ llm/                 адаптеры LLM, не зависят от бота
 dev/                 локальный запуск без токенов (python -m dev)
 http/webhook.http    примеры вебхуков MAX для ручной проверки
 app/
-  main.py            запуск polling
+  main.py            запуск webhook-сервера
   config.py          URL и константы
   runtime.py         клиенты MAX и LLM
   state.py           состояние диалогов
@@ -65,12 +65,26 @@ notepad .env
 .\.venv\Scripts\python.exe main.py
 ```
 
-Впишите в `.env` токен бота MAX и ключ DeepSeek (или Authorization Key GigaChat). Не добавляйте
+Впишите в `.env` токен бота MAX, секрет вебхука `MAX_WEBHOOK_SECRET` и ключ DeepSeek (или Authorization Key GigaChat). Не добавляйте
 реальные ключи в репозиторий: `.env` исключён через `.gitignore`. Без ключа ИИ
 бот запустится, но тест и обсуждение параграфа будут недоступны.
 
 Установите доверенный сертификат Минцифры, если этого требует ваша среда для
 соединения с MAX/GigaChat.
+
+Бот принимает обновления MAX по webhook: HTTP-сервер слушает `0.0.0.0:8000`, путь `/webhook`
+(`WEBHOOK_HOST`, `WEBHOOK_PORT`, `WEBHOOK_PATH`). Сервер проверяет заголовок
+`X-Max-Bot-Api-Secret` — он должен совпадать с `MAX_WEBHOOK_SECRET`.
+
+### Подключение webhook
+
+1. Сделайте сервер доступным по HTTPS, например для разработки: `tailscale funnel 8000`.
+2. Запустите бота: `python main.py`.
+3. Установите подписку: `POST https://platform-api2.max.ru/subscriptions` с заголовком
+   `Authorization: <токен бота>` и телом
+   `{"url": "https://<домен>/webhook", "update_types": ["message_created", "message_callback", "bot_started"], "secret": "<MAX_WEBHOOK_SECRET>"}`.
+   Проверить подписку: `GET /subscriptions`. Для production (Docker) повторите шаг 3 с адресом
+   production-сервера; бот сам подписку не создаёт.
 
 При `/start` бот показывает книги из каталога API. После выбора
 книги отправьте номер параграфа.
@@ -108,6 +122,4 @@ python -m pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-Бот использует polling для локального запуска. В документации MAX polling
-предназначен для разработки и тестирования; для production следует настроить
-webhook. Состояние диалога хранится в памяти процесса и сбрасывается при перезапуске.
+Состояние диалога хранится в памяти процесса и сбрасывается при перезапуске.
