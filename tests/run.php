@@ -295,6 +295,15 @@ try {
 }
 check('тест: все варианты верные — ошибка', $threw);
 
+$partA = str_repeat('А', 200);
+$partB = str_repeat('Б', 200);
+$picked = [];
+for ($i = 0; $i < 50; $i++) {
+    $picked[Quiz::randomPart("$partA\n\nкороткий\n\n$partB")] = true;
+}
+check('randomPart: берёт один длинный подпункт', !isset($picked['короткий']) && !isset($picked["$partA\n\n$partB"]) && $picked !== [], json_encode(array_keys($picked)));
+check('randomPart: без длинных подпунктов — весь текст', Quiz::randomPart("a\n\nb") === "a\n\nb");
+
 // LLM-клиент
 $logFile = sys_get_temp_dir() . '/maxbot_llm_test.log';
 @unlink($logFile);

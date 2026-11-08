@@ -34,9 +34,23 @@ final class Quiz
         sort($this->selected);
     }
 
+    /** Слишком короткий подпункт не годится для вопроса, поэтому в выборку не попадает. */
+    private const MIN_PART_CHARS = 150;
+
+    /** Для вопроса в ИИ уходит один случайный подпункт, а не весь параграф: так тратится меньше токенов. */
     public static function generate(LlmClient $llm, string $paragraphText): self
     {
-        return self::parse($llm->complete(self::SYSTEM_PROMPT, $paragraphText));
+        return self::parse($llm->complete(self::SYSTEM_PROMPT, self::randomPart($paragraphText)));
+    }
+
+    /** Подпункты в тексте параграфа разделены пустой строкой (см. Books::parseParagraph). */
+    public static function randomPart(string $paragraphText): string
+    {
+        $parts = array_values(array_filter(
+            array_map('trim', explode("\n\n", $paragraphText)),
+            fn(string $part) => mb_strlen($part) >= self::MIN_PART_CHARS
+        ));
+        return $parts ? $parts[random_int(0, count($parts) - 1)] : $paragraphText;
     }
 
     /** Разбирает JSON-ответ модели: {"question", "options", "correct"} (индексы с нуля). */
