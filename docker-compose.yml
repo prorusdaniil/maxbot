@@ -1,0 +1,12 @@
+services:
+  bot:
+    build: .
+    image: maxbot:php8.3
+    container_name: maxbot
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/var/www/html/logs
