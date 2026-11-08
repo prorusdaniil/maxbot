@@ -3,3 +3,4 @@
 logs/*
 !logs/.htaccess
 http/set_webhook.http
+.DS_Store
