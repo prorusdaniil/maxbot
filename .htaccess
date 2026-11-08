@@ -1,0 +1,7 @@
+# Закрывает от прямого доступа по HTTP всё, кроме webhook.php и api.php.
+<FilesMatch "^(\.env.*|.*\.sql|.*\.md|\.git.*)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^(set_webhook|generate_details)\.php$">
+    Require all denied
+</FilesMatch>

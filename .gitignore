@@ -1,5 +1,5 @@
 .env
 .venv/
-__pycache__/
-logs/
+logs/*
+!logs/.htaccess
 http/set_webhook.http

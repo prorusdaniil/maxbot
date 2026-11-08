@@ -1,17 +1,18 @@
-### Тестовые вебхуки MAX для локального бота (dev-режим)
-# Запуск бота:  python -m dev        (см. README, раздел «Проверка без токенов»)
+### Тестовые вебхуки MAX для ручной проверки webhook.php
 # Формат тел запросов повторяет обновления Bot API MAX: update_type = message_created | message_callback.
 # Работает в VS Code (REST Client) и JetBrains HTTP Client. Выполняйте запросы по порядку:
-# состояние диалога хранится в памяти бота.
+# состояние диалога хранится в таблице bot_sessions.
 #
-# Ответы бота (то, что он отправил бы в MAX) печатаются в консоли dev-сервера,
-# запросы к LLM — в файле logs/llm.log.
+# Бот отвечает в настоящий MAX (нужен MAX_BOT_TOKEN), поэтому user_id/chat_id ниже должны
+# принадлежать реальному диалогу с ботом. Для проверки без MAX укажите в .env
+# MAX_API_URL на свой заглушечный сервер. Ошибки пишутся в logs/bot.log,
+# запросы к LLM — в logs/llm.log (LLM_LOG_FILE).
 
-@host = http://127.0.0.1:8080
-@secret = dev-secret
+@host = https://example.com
+@secret = вставьте_MAX_WEBHOOK_SECRET
 
 ### 1. Текст: команда /start (бот покажет список книг)
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -43,7 +44,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 2. Кнопка: случайный факт (можно нажать сразу после /start)
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -92,7 +93,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 3. Кнопка: выбор книги (payload book:3 — «История 6 класс» в каталоге API)
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -140,7 +141,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 4. Текст: номер параграфа (в каталоге есть параграфы 1 и 2)
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -172,7 +173,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 5. Кнопка: пересказ простыми словами
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -224,7 +225,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 6. Кнопка: ответы на вопросы учебника
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -276,7 +277,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 7. Кнопка: основные тезисы
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -328,7 +329,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 8. Кнопка: «Тест по теме» (запрос к LLM, вопрос теста)
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -380,7 +381,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 9. Кнопка теста: отметить вариант 1
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -429,7 +430,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 10. Кнопка теста: отметить вариант 3
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -478,7 +479,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 11. Кнопка теста: «Проверить»
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -527,7 +528,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 12. Кнопка: «Обсудить параграф»
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -579,7 +580,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 13. Текст: вопрос по параграфу (запрос к LLM)
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
@@ -611,7 +612,7 @@ X-Max-Bot-Api-Secret: {{secret}}
 }
 
 ### 14. Кнопка: «В меню»
-POST {{host}}/webhook
+POST {{host}}/webhook.php
 Content-Type: application/json
 X-Max-Bot-Api-Secret: {{secret}}
 
