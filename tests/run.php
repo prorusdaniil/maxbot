@@ -338,17 +338,19 @@ try {
 check('нет ключей — LlmConfigurationError', $threw);
 putenv('DEEPSEEK_API_KEY=k');
 check('DeepSeek по ключу', createLlmClient() instanceof DeepSeekClient);
-$statsLog = sys_get_temp_dir() . '/maxbot_stats_test.log';
-@unlink($statsLog);
-putenv("STATS_LOG_FILE=$statsLog");
-statsLog('quiz', 5);
-check('статистика включена по умолчанию', str_contains((string)@file_get_contents($statsLog), ' quiz 5'));
-@unlink($statsLog);
+$statsDb = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+(new Sessions($statsDb))->ensureSchema();
+$GLOBALS['__db'] = $statsDb;
+setLogUser(9, 'ivan');
+statsLog('quiz', 5, 3, 12);
+$row = $statsDb->query('SELECT user_id, user_name, book_id, paragraph_id, feature, tokens_used FROM stats')->fetch(PDO::FETCH_NUM);
+check('статистика пишется в БД', $row === ['9', 'ivan', '3', '12', 'quiz', '5'] || $row === [9, 'ivan', 3, 12, 'quiz', 5], json_encode($row));
 putenv('STATS_ENABLED=false');
 statsLog('quiz', 5);
-check('статистику можно отключить', !file_exists($statsLog));
+check('статистику можно отключить', (int)$statsDb->query('SELECT COUNT(*) FROM stats')->fetchColumn() === 1);
 putenv('STATS_ENABLED');
-putenv('STATS_LOG_FILE');
+setLogUser(null);
+unset($GLOBALS['__db']);
 putenv('DEEPSEEK_API_KEY');
 
 echo $failures === 0 ? "\nВсе проверки пройдены\n" : "\nПровалено: $failures\n";

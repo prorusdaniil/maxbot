@@ -17,20 +17,23 @@ function logUserFields(): array
     return [$GLOBALS['__log_user_id'] ?? '-', $name === null ? '-' : preg_replace('/\s+/u', '_', $name)];
 }
 
-/** Статистика использования: «время INFO user_id user_name feature_id tokens» в STATS_LOG_FILE (logs/stats.log), не зависит от LOG_LEVEL; отключается STATS_ENABLED=false. */
-function statsLog(string $featureId, int $tokens): void
+/** Статистика использования: строка в таблице stats; отключается STATS_ENABLED=false. Сбой записи не мешает боту. */
+function statsLog(string $feature, int $tokens, ?int $bookId = null, ?int $paragraphId = null): void
 {
     if (in_array(strtolower(env('STATS_ENABLED', 'true') ?? 'true'), ['0', 'false', 'off', 'no'], true)) {
         return;
     }
-    $path = resolvePath(env('STATS_LOG_FILE', 'logs/stats.log'));
-    if (!is_dir(dirname($path))) {
-        @mkdir(dirname($path), 0775, true);
+    $userId = $GLOBALS['__log_user_id'] ?? null;
+    if ($userId === null) {
+        return;
     }
-    [$id, $name] = logUserFields();
-    $line = sprintf("%s INFO %s %s %s %d\n", date('Y-m-d H:i:s'), $id, $name, $featureId, $tokens);
-    if (!@error_log($line, 3, $path)) {
-        error_log(trim($line));
+    try {
+        db()->prepare(
+            'INSERT INTO stats (created_at, user_id, user_name, book_id, paragraph_id, feature, tokens_used)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )->execute([date('Y-m-d H:i:s'), $userId, $GLOBALS['__log_user_name'] ?? null, $bookId, $paragraphId, $feature, $tokens]);
+    } catch (Throwable $e) {
+        logException('Не удалось записать статистику', $e);
     }
 }
 

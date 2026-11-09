@@ -49,16 +49,7 @@ final class Sessions
 
     public static function fromEnv(): self
     {
-        $host = env('DB_HOST', 'localhost');
-        $name = env('DB_NAME', 'books');
-        $user = env('DB_USER');
-        if ($user === null) {
-            throw new RuntimeException('Не задан DB_USER');
-        }
-        $pdo = new PDO("mysql:host=$host;dbname=$name;charset=utf8mb4", $user, env('DB_PASS', ''), [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
+        $pdo = db();
         return new self($pdo);
     }
 
@@ -71,6 +62,17 @@ final class Sessions
                 user_id BIGINT NOT NULL PRIMARY KEY,
                 data LONGTEXT NOT NULL,
                 updated_at INT NOT NULL
+            )' . $suffix
+        );
+        $this->pdo->exec(
+            'CREATE TABLE IF NOT EXISTS stats (
+                created_at DATETIME NOT NULL,
+                user_id BIGINT NOT NULL,
+                user_name VARCHAR(255) NULL,
+                book_id INT NULL,
+                paragraph_id INT NULL,
+                feature VARCHAR(32) NOT NULL,
+                tokens_used INT NOT NULL
             )' . $suffix
         );
     }

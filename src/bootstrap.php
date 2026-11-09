@@ -5,6 +5,7 @@ define('BOT_ROOT', dirname(__DIR__));
 
 require_once __DIR__ . '/Env.php';
 require_once __DIR__ . '/Log.php';
+require_once __DIR__ . '/Db.php';
 require_once __DIR__ . '/Http.php';
 require_once __DIR__ . '/Prompts.php';
 require_once __DIR__ . '/Llm/LlmClient.php';

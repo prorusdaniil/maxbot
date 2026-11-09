@@ -14,7 +14,7 @@
 Бизнес-логика отделена от кода: промпты — в `prompts/*.txt`, меню бота — в `config/menu.php`,
 нейросеть — в `src/Llm/` (интерфейс `LlmClient` и реализация `DeepSeekClient`).
 Формат строки лога: `время УРОВЕНЬ user=<id MAX> username=<имя> сообщение`.
-Статистика использования пишется отдельно в `logs/stats.log`: `время INFO user_id user_name feature_id tokens`; отключается `STATS_ENABLED=false`.
+Статистика использования пишется в таблицу `stats` (`created_at`, `user_id`, `user_name`, `book_id`, `paragraph_id`, `feature`, `tokens_used`); отключается `STATS_ENABLED=false`.
 
 ## Запуск сервера
 

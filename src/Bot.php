@@ -176,7 +176,7 @@ final class Bot
             $this->sendLlmError($chatId, $e, $userId);
             return;
         }
-        statsLog('discuss', $this->tokens() - $tokensBefore);
+        statsLog('discuss', $this->tokens() - $tokensBefore, $context->bookId, $context->paragraphId);
         $this->sendLongText($chatId, $answer);
         $this->sendBackToMenu($chatId, 'Задай ещё вопрос или вернись в меню.');
     }
@@ -273,7 +273,7 @@ final class Bot
             return;
         }
 
-        statsLog($feature, 0);
+        statsLog($feature, 0, $context->bookId, $context->paragraphId);
         $this->sendLongText($chatId, $text);
         $this->sendMenu($chatId, 'Что дальше?');
     }
@@ -312,7 +312,7 @@ final class Bot
             return;
         }
 
-        statsLog('quiz', $this->tokens() - $tokensBefore);
+        statsLog('quiz', $this->tokens() - $tokensBefore, $context->bookId, $context->paragraphId);
         $context->quiz = $quiz;
         $this->sendText($chatId, $quiz->format($paragraph[0]), Keyboards::quiz($quiz));
     }
