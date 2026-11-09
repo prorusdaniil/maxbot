@@ -12,12 +12,6 @@ final class Quiz
     private const MIN_OPTIONS = 2;
     private const MAX_OPTIONS = 6;
 
-    public const SYSTEM_PROMPT = 'Ты — учитель. По тексту параграфа составь один тестовый вопрос и 4 варианта ответа. '
-        . 'Правильных вариантов может быть один или несколько (но не все). '
-        . 'Используй только факты из текста. Ответь строго JSON без пояснений и markdown: '
-        . '{"question": "...", "options": ["...", "...", "...", "..."], '
-        . '"correct": [номера правильных вариантов, начиная с 0]}';
-
     /**
      * @param list<string> $options
      * @param list<int> $correct
@@ -40,7 +34,7 @@ final class Quiz
     /** Для вопроса в ИИ уходит один случайный подпункт, а не весь параграф: так тратится меньше токенов. */
     public static function generate(LlmClient $llm, string $paragraphText): self
     {
-        return self::parse($llm->complete(self::SYSTEM_PROMPT, self::randomPart($paragraphText)));
+        return self::parse($llm->complete(Prompts::get('quiz'), self::randomPart($paragraphText)));
     }
 
     /** Подпункты в тексте параграфа разделены пустой строкой (см. Books::parseParagraph). */

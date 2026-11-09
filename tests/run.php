@@ -96,6 +96,11 @@ class FakeLlm implements LlmClient
     public string $reply = '';
     public array $requests = [];
 
+    public function tokensUsed(): int
+    {
+        return 0;
+    }
+
     public function complete(string $systemPrompt, string $userContent): string
     {
         $this->requests[] = [$systemPrompt, $userContent];
@@ -305,15 +310,25 @@ check('randomPart: берёт один длинный подпункт', !isset(
 check('randomPart: без длинных подпунктов — весь текст', Quiz::randomPart("a\n\nb") === "a\n\nb");
 
 // LLM-клиент
-$logFile = sys_get_temp_dir() . '/maxbot_llm_test.log';
-@unlink($logFile);
-$logged = new LoggingLlmClient($llm, $logFile);
-$llm->reply = 'ok';
-$logged->complete('sys', 'usr');
-check('лог LLM', str_contains((string)file_get_contents($logFile), 'СИСТЕМНЫЙ ПРОМПТ:') && str_contains((string)file_get_contents($logFile), "ОТВЕТ:\nok"));
+// Лог: время, уровень, id пользователя, сообщение; по умолчанию только ERROR
+$testLog = sys_get_temp_dir() . '/maxbot_format_test.log';
+@unlink($testLog);
+putenv("BOT_LOG_FILE=$testLog");
+putenv('LOG_LEVEL');
+botLog('info', 'не пишется', 42);
+botLog('error', 'сбой', 42);
+$logLine = (string)@file_get_contents($testLog);
+check('лог: формат и уровень по умолчанию', !str_contains($logLine, 'не пишется')
+    && preg_match('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ERROR user=42 username=- сбой$/', trim($logLine)) === 1, $logLine);
+putenv('LOG_LEVEL=info');
+botLog('info', 'пишется', 7);
+check('лог: LOG_LEVEL=info', str_contains((string)file_get_contents($testLog), 'INFO user=7 username=- пишется'));
+putenv('LOG_LEVEL');
+putenv('BOT_LOG_FILE=' . sys_get_temp_dir() . '/maxbot_test.log');
+@unlink($testLog);
+check('промпты из файлов', Prompts::get('summary') !== '' && Prompts::get('quiz') !== '' && Prompts::get('discuss') !== '');
+
 putenv('DEEPSEEK_API_KEY');
-putenv('GIGACHAT_CREDENTIALS');
-putenv('LLM_PROVIDER');
 $threw = false;
 try {
     createLlmClient();
@@ -323,6 +338,17 @@ try {
 check('нет ключей — LlmConfigurationError', $threw);
 putenv('DEEPSEEK_API_KEY=k');
 check('DeepSeek по ключу', createLlmClient() instanceof DeepSeekClient);
+$statsLog = sys_get_temp_dir() . '/maxbot_stats_test.log';
+@unlink($statsLog);
+putenv("STATS_LOG_FILE=$statsLog");
+statsLog('quiz', 5);
+check('статистика включена по умолчанию', str_contains((string)@file_get_contents($statsLog), ' quiz 5'));
+@unlink($statsLog);
+putenv('STATS_ENABLED=false');
+statsLog('quiz', 5);
+check('статистику можно отключить', !file_exists($statsLog));
+putenv('STATS_ENABLED');
+putenv('STATS_LOG_FILE');
 putenv('DEEPSEEK_API_KEY');
 
 echo $failures === 0 ? "\nВсе проверки пройдены\n" : "\nПровалено: $failures\n";

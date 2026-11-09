@@ -15,32 +15,7 @@ if (PHP_SAPI !== 'cli') {
     exit("CLI only\n");
 }
 
-// --- Настройки ---
-
-function loadEnvFile(string $path): void
-{
-    if (!is_readable($path)) {
-        return;
-    }
-    foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-        $line = trim($line);
-        if ($line === '' || $line[0] === '#' || strpos($line, '=') === false) {
-            continue;
-        }
-        [$name, $value] = explode('=', $line, 2);
-        $name = trim($name);
-        $value = trim($value, " \t\"'");
-        if (getenv($name) === false) {
-            putenv("$name=$value");
-        }
-    }
-}
-
-function env(string $name, ?string $default = null): ?string
-{
-    $value = getenv($name);
-    return ($value === false || $value === '') ? $default : $value;
-}
+require __DIR__ . '/src/bootstrap.php';
 
 // --- 1. Следующий параграф без деталей ---
 
@@ -80,7 +55,7 @@ function getNextParagraph(PDO $pdo): ?array
     return $row ?: null;
 }
 
-// --- 2. Промпты ---
+// --- 2. Запросы к нейросети ---
 
 /** parts и questions хранятся в БД как JSON; приводим их к читаемому тексту. */
 function jsonToText(?string $json, bool $numbered = false): string
@@ -103,104 +78,14 @@ function jsonToText(?string $json, bool $numbered = false): string
     return implode("\n\n", $items);
 }
 
-const JSON_LIST_HINT = 'Верни результат строго в виде JSON-массива строк без нумерации, пояснений и markdown.';
-
-function buildPrompts(array $paragraph): array
+/** Системный промпт берётся из prompts/<имя>.txt, а в ИИ уходят текст параграфа и вопросы. */
+function askLlm(LlmClient $llm, string $promptName, array $paragraph, bool $withQuestions): string
 {
-    $text = jsonToText($paragraph['parts']);
-    $questions = jsonToText($paragraph['questions'], true);
-
-    $textBlock = "\n\nТекст параграфа:\n" . $text;
-    $questionsBlock = "\n\nВопросы к параграфу:\n" . $questions;
-
-    return [
-        'summary' => 'Перескажи кратко текст параграфа простыми словами для 6 класса средней школы. '
-            . 'Не искажай факты и дай ответы на все вопросы к параграфу в пересказе'
-            . $textBlock . $questionsBlock,
-        'answers' => 'Ответь простыми словами на вопросы параграфа, используя факты из текста. '
-            . 'Дай ровно один ответ на каждый вопрос в порядке вопросов. ' . JSON_LIST_HINT
-            . $textBlock . $questionsBlock,
-        'main_points' => 'Кратко сформулируй основные тезисы и даты из параграфа. ' . JSON_LIST_HINT
-            . $textBlock,
-    ];
-}
-
-// --- 3. Запросы к нейросети ---
-
-function httpPostJson(string $url, array $headers, array $payload): array
-{
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 180,
-        CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers),
-        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-    ]);
-    $body = curl_exec($ch);
-    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
-
-    if ($body === false) {
-        throw new RuntimeException("Ошибка запроса к LLM: $error");
+    $content = "Текст параграфа:\n" . jsonToText($paragraph['parts']);
+    if ($withQuestions) {
+        $content .= "\n\nВопросы к параграфу:\n" . jsonToText($paragraph['questions'], true);
     }
-    $data = json_decode($body, true);
-    if ($status < 200 || $status >= 300 || !is_array($data)) {
-        throw new RuntimeException("LLM вернула HTTP $status: " . mb_substr($body, 0, 500));
-    }
-    return $data;
-}
-
-function askDeepSeek(string $prompt): string
-{
-    $apiKey = env('DEEPSEEK_API_KEY');
-    if ($apiKey === null) {
-        throw new RuntimeException('Не задан DEEPSEEK_API_KEY');
-    }
-    $baseUrl = rtrim(env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'), '/');
-
-    $data = httpPostJson("$baseUrl/chat/completions", ["Authorization: Bearer $apiKey"], [
-        'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
-        'messages' => [['role' => 'user', 'content' => $prompt]],
-        'stream' => false,
-    ]);
-    return $data['choices'][0]['message']['content'] ?? '';
-}
-
-function askGemini(string $prompt): string
-{
-    $apiKey = env('GEMINI_API_KEY');
-    if ($apiKey === null) {
-        throw new RuntimeException('Не задан GEMINI_API_KEY');
-    }
-    $model = env('GEMINI_MODEL', 'gemini-2.5-flash');
-
-    $data = httpPostJson(
-        "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent",
-        ["x-goog-api-key: $apiKey"],
-        ['contents' => [['parts' => [['text' => $prompt]]]]]
-    );
-    $text = '';
-    foreach ($data['candidates'][0]['content']['parts'] ?? [] as $part) {
-        $text .= $part['text'] ?? '';
-    }
-    return $text;
-}
-
-function askLlm(string $prompt): string
-{
-    $provider = strtolower(env('PARAGRAPH_LLM_PROVIDER', 'deepseek'));
-    $answer = match ($provider) {
-        'deepseek' => askDeepSeek($prompt),
-        'gemini' => askGemini($prompt),
-        default => throw new RuntimeException("Неизвестный PARAGRAPH_LLM_PROVIDER: $provider"),
-    };
-    $answer = trim($answer);
-    if ($answer === '') {
-        throw new RuntimeException('LLM вернула пустой ответ');
-    }
-    return $answer;
+    return $llm->complete(Prompts::get($promptName), $content);
 }
 
 /** Приводит ответ модели к списку строк: сначала как JSON, иначе построчно. */
@@ -223,13 +108,12 @@ function parseList(string $answer): array
     return $list;
 }
 
-function generateDetails(array $paragraph): array
+function generateDetails(LlmClient $llm, array $paragraph): array
 {
-    $prompts = buildPrompts($paragraph);
     return [
-        'summary' => askLlm($prompts['summary']),
-        'answers' => parseList(askLlm($prompts['answers'])),
-        'main_points' => parseList(askLlm($prompts['main_points'])),
+        'summary' => askLlm($llm, 'summary', $paragraph, true),
+        'answers' => parseList(askLlm($llm, 'answers', $paragraph, true)),
+        'main_points' => parseList(askLlm($llm, 'main_points', $paragraph, false)),
     ];
 }
 
@@ -254,13 +138,12 @@ function saveDetails(PDO $pdo, array $paragraph, array $details): void
 
 function main(array $argv): int
 {
-    loadEnvFile(__DIR__ . '/.env');
-
     $options = getopt('', ['count::', 'dry-run']);
     $count = max(1, (int)($options['count'] ?? 1));
     $dryRun = isset($options['dry-run']);
 
     $pdo = connectDb();
+    $llm = createLlmClient();
 
     for ($i = 0; $i < $count; $i++) {
         $paragraph = getNextParagraph($pdo);
@@ -273,7 +156,7 @@ function main(array $argv): int
         echo "Обработка: $label\n";
 
         try {
-            $details = generateDetails($paragraph);
+            $details = generateDetails($llm, $paragraph);
         } catch (Throwable $e) {
             fwrite(STDERR, "Ошибка для $label: {$e->getMessage()}\n");
             return 1;

@@ -1,21 +1,72 @@
 <?php
 declare(strict_types=1);
 
-/** Пишет строку в лог бота (BOT_LOG_FILE, по умолчанию logs/bot.log); ключи и токены сюда передавать нельзя. */
-function botLog(string $level, string $message): void
+const LOG_LEVELS = ['DEBUG' => 0, 'INFO' => 1, 'WARNING' => 2, 'ERROR' => 3];
+
+/** Запоминает id пользователя MAX, который попадёт во все последующие строки лога (null — сброс). */
+function setLogUser(?int $userId, ?string $userName = null): void
 {
+    $GLOBALS['__log_user_id'] = $userId;
+    $GLOBALS['__log_user_name'] = $userName;
+}
+
+/** Пишет строку, учитывая id и username текущего пользователя (пробелы в имени заменяются на «_»). */
+function logUserFields(): array
+{
+    $name = $GLOBALS['__log_user_name'] ?? null;
+    return [$GLOBALS['__log_user_id'] ?? '-', $name === null ? '-' : preg_replace('/\s+/u', '_', $name)];
+}
+
+/** Статистика использования: «время INFO user_id user_name feature_id tokens» в STATS_LOG_FILE (logs/stats.log), не зависит от LOG_LEVEL; отключается STATS_ENABLED=false. */
+function statsLog(string $featureId, int $tokens): void
+{
+    if (in_array(strtolower(env('STATS_ENABLED', 'true') ?? 'true'), ['0', 'false', 'off', 'no'], true)) {
+        return;
+    }
+    $path = resolvePath(env('STATS_LOG_FILE', 'logs/stats.log'));
+    if (!is_dir(dirname($path))) {
+        @mkdir(dirname($path), 0775, true);
+    }
+    [$id, $name] = logUserFields();
+    $line = sprintf("%s INFO %s %s %s %d\n", date('Y-m-d H:i:s'), $id, $name, $featureId, $tokens);
+    if (!@error_log($line, 3, $path)) {
+        error_log(trim($line));
+    }
+}
+
+/**
+ * Пишет строку «время УРОВЕНЬ user=id username=имя сообщение» в BOT_LOG_FILE (по умолчанию logs/bot.log).
+ * Записываются только события не ниже LOG_LEVEL из .env (по умолчанию ERROR).
+ * Ключи и токены сюда передавать нельзя.
+ */
+function botLog(string $level, string $message, ?int $userId = null): void
+{
+    $level = strtoupper($level);
+    $threshold = LOG_LEVELS[strtoupper(env('LOG_LEVEL', 'ERROR') ?? 'ERROR')] ?? LOG_LEVELS['ERROR'];
+    if ((LOG_LEVELS[$level] ?? LOG_LEVELS['ERROR']) < $threshold) {
+        return;
+    }
+
     $path = resolvePath(env('BOT_LOG_FILE', 'logs/bot.log'));
     $dir = dirname($path);
     if (!is_dir($dir)) {
         @mkdir($dir, 0775, true);
     }
-    $line = sprintf("%s %s %s\n", date('Y-m-d H:i:s'), strtoupper($level), $message);
-    if (@file_put_contents($path, $line, FILE_APPEND | LOCK_EX) === false) {
+    [$currentId, $userName] = logUserFields();
+    $line = sprintf(
+        "%s %s user=%s username=%s %s\n",
+        date('Y-m-d H:i:s'),
+        $level,
+        $userId ?? $currentId,
+        $userName,
+        str_replace(["\r", "\n"], ' ', $message)
+    );
+    if (!@error_log($line, 3, $path)) {
         error_log(trim($line));
     }
 }
 
-function logException(string $context, Throwable $error): void
+function logException(string $context, Throwable $error, ?int $userId = null): void
 {
-    botLog('error', sprintf('%s: %s: %s (%s:%d)', $context, get_class($error), $error->getMessage(), basename($error->getFile()), $error->getLine()));
+    botLog('error', sprintf('%s: %s: %s (%s:%d)', $context, get_class($error), $error->getMessage(), basename($error->getFile()), $error->getLine()), $userId);
 }

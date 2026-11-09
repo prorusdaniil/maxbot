@@ -58,6 +58,7 @@ if (!is_array($update)) {
     reject(400, 'Invalid JSON');
 }
 
+setLogUser(Bot::extractIds($update)[1] ?? null, Bot::extractUserName($update));
 respondAndContinue();
 set_time_limit(180);
 botLog('info', 'Получено обновление ' . ($update['update_type'] ?? '?'));

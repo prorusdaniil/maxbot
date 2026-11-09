@@ -12,19 +12,16 @@ class Books
     /** Каждая функция обслуживается отдельным эндпоинтом; ответ: {"<endpoint>": текст | [строки]}. */
     public const FEATURES = [
         'summary' => [
-            'button' => 'Пересказ простыми словами',
             'endpoint' => 'summary',
             'list' => false,
             'missing' => 'Для этого параграфа пока нет пересказа.',
         ],
         'answers' => [
-            'button' => 'Ответы на вопросы учебника',
             'endpoint' => 'answers',
             'list' => true,
             'missing' => 'Для этого параграфа пока нет ответов на вопросы.',
         ],
         'theses' => [
-            'button' => 'Основные тезисы',
             'endpoint' => 'main_points',
             'list' => true,
             'missing' => 'Для этого параграфа пока нет тезисов.',

@@ -69,6 +69,13 @@ class MaxApi
 /** Inline-клавиатуры бота. */
 final class Keyboards
 {
+    /** Меню бота из config/menu.php. */
+    public static function config(): array
+    {
+        static $config = null;
+        return $config ??= require BOT_ROOT . '/config/menu.php';
+    }
+
     private static function button(string $text, string $payload): array
     {
         return ['type' => 'callback', 'text' => $text, 'payload' => $payload];
@@ -83,7 +90,10 @@ final class Keyboards
     /** @param array<int,string> $books */
     public static function books(array $books): array
     {
-        $rows = [[self::button('Случайный факт', 'random_fact')]];
+        $rows = [];
+        foreach (self::config()['start']['buttons'] as [$text, $payload]) {
+            $rows[] = [self::button($text, $payload)];
+        }
         foreach ($books as $bookId => $title) {
             $rows[] = [self::button($title, "book:$bookId")];
         }
@@ -93,17 +103,15 @@ final class Keyboards
     public static function menu(): array
     {
         $rows = [];
-        foreach (Books::FEATURES as $key => $feature) {
-            $rows[] = [self::button($feature['button'], "feature:$key")];
+        foreach (self::config()['paragraph']['buttons'] as [$text, $payload]) {
+            $rows[] = [self::button($text, $payload)];
         }
-        $rows[] = [self::button('Тест по теме', 'quiz')];
-        $rows[] = [self::button('Обсудить параграф', 'discuss')];
         return self::keyboard($rows);
     }
 
     public static function backToMenu(): array
     {
-        return self::keyboard([[self::button('В меню', 'menu')]]);
+        return self::keyboard([[self::button(...self::config()['back'])]]);
     }
 
     public static function quiz(Quiz $quiz): array
@@ -113,6 +121,6 @@ final class Keyboards
             $mark = in_array($index, $quiz->selected, true) ? '☑' : '☐';
             $row[] = self::button($mark . ' ' . ($index + 1), "quiz:toggle:$index");
         }
-        return self::keyboard([$row, [self::button('Проверить', 'quiz:check')]]);
+        return self::keyboard([$row, [self::button(...self::config()['quiz_check'])]]);
     }
 }

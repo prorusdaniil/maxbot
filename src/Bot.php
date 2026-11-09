@@ -43,6 +43,19 @@ final class Bot
         return is_int($chatId) && is_int($userId) ? [$chatId, $userId] : null;
     }
 
+    /** Username (или имя) пользователя MAX из обновления. */
+    public static function extractUserName(array $update): ?string
+    {
+        $user = match ($update['update_type'] ?? '') {
+            'message_created' => $update['message']['sender'] ?? [],
+            'message_callback' => $update['callback']['user'] ?? [],
+            'bot_started' => $update['user'] ?? [],
+            default => [],
+        };
+        $name = $user['username'] ?? $user['name'] ?? $user['first_name'] ?? null;
+        return is_string($name) && $name !== '' ? $name : null;
+    }
+
     public function handleUpdate(array $update): void
     {
         $ids = self::extractIds($update);
@@ -50,6 +63,7 @@ final class Bot
             return;
         }
         [$chatId, $userId] = $ids;
+        setLogUser($userId, self::extractUserName($update));
 
         $this->sessions->lock($userId);
         try {
@@ -113,7 +127,7 @@ final class Bot
             $this->sendText($chatId, 'Не удалось загрузить список книг. Попробуй /start позже.');
             return;
         }
-        $this->sendText($chatId, 'Привет! Выбери книгу:', Keyboards::books($books));
+        $this->sendText($chatId, Keyboards::config()['start']['text'], Keyboards::books($books));
     }
 
     private function handleParagraphNumber(UserContext $context, int $userId, int $chatId, string $text): void
@@ -132,7 +146,7 @@ final class Bot
         }
 
         try {
-            [$title, $paragraphText] = $this->books->fetchParagraph($context->bookId, $paragraphId);
+            [$title] = $this->books->fetchParagraph($context->bookId, $paragraphId);
         } catch (HttpException | BookApiError $e) {
             logException("Не удалось загрузить параграф $paragraphId книги {$context->bookId}", $e);
             $this->sendText($chatId, 'Не удалось загрузить параграф. Проверь номер и попробуй ещё раз.');
@@ -140,25 +154,29 @@ final class Bot
         }
 
         $context->paragraphId = $paragraphId;
-        $context->paragraphTitle = $title;
-        $context->paragraphText = $paragraphText;
         $context->quiz = null;
         $context->stage = 'ready';
         $this->sendMenu(
             $chatId,
-            "Параграф «{$title}» загружен. Выбери действие или введи номер другого параграфа:"
+            strtr(Keyboards::config()['paragraph']['text'], ['{title}' => $title])
         );
     }
 
     private function handleDiscussion(UserContext $context, int $userId, int $chatId, string $question): void
     {
+        $paragraph = $this->loadParagraph($context, $userId, $chatId);
+        if ($paragraph === null) {
+            return;
+        }
         $this->sendText($chatId, 'Думаю…');
+        $tokensBefore = $this->tokens();
         try {
-            $answer = answerQuestion($this->llm(), $context->paragraphText, $question);
+            $answer = answerQuestion($this->llm(), $paragraph[1], $question);
         } catch (LlmError $e) {
             $this->sendLlmError($chatId, $e, $userId);
             return;
         }
+        statsLog('discuss', $this->tokens() - $tokensBefore);
         $this->sendLongText($chatId, $answer);
         $this->sendBackToMenu($chatId, 'Задай ещё вопрос или вернись в меню.');
     }
@@ -172,7 +190,7 @@ final class Bot
         $context = $this->sessions->get($userId);
 
         if (str_starts_with($payload, 'quiz:') && $context !== null && $context->stage === 'ready') {
-            $this->handleQuizCallback($callbackId, $context, $chatId, $payload);
+            $this->handleQuizCallback($callbackId, $context, $userId, $chatId, $payload);
             return;
         }
 
@@ -187,7 +205,7 @@ final class Bot
             return;
         }
 
-        if ($context === null || !in_array($context->stage, ['ready', 'discuss'], true) || $context->paragraphText === '') {
+        if ($context === null || !in_array($context->stage, ['ready', 'discuss'], true) || $context->paragraphId === null) {
             $this->sendText($chatId, 'Сначала загрузи параграф: введи /start и выбери книгу.');
             return;
         }
@@ -202,8 +220,12 @@ final class Bot
             $context->stage = 'ready';
             $this->startQuiz($context, $userId, $chatId);
         } elseif ($payload === 'discuss') {
+            $paragraph = $this->loadParagraph($context, $userId, $chatId);
+            if ($paragraph === null) {
+                return;
+            }
             $context->stage = 'discuss';
-            $this->sendBackToMenu($chatId, "Параграф «{$context->paragraphTitle}». Напиши свой вопрос по нему:");
+            $this->sendBackToMenu($chatId, "Параграф «{$paragraph[0]}». Напиши свой вопрос по нему:");
         } else {
             botLog('warning', 'Неизвестный payload кнопки: ' . json_encode($payload, JSON_UNESCAPED_UNICODE));
         }
@@ -233,7 +255,7 @@ final class Bot
         }
 
         $this->sessions->set($userId, new UserContext('enter_paragraph', $bookId));
-        $this->sendText($chatId, "Выбрана книга «{$books[$bookId]}». Введи номер параграфа:");
+        $this->sendText($chatId, strtr(Keyboards::config()['book']['text'], ['{book}' => $books[$bookId]]));
     }
 
     private function handleFeature(UserContext $context, int $userId, int $chatId, string $feature): void
@@ -251,6 +273,7 @@ final class Bot
             return;
         }
 
+        statsLog($feature, 0);
         $this->sendLongText($chatId, $text);
         $this->sendMenu($chatId, 'Что дальше?');
     }
@@ -264,6 +287,7 @@ final class Bot
             $this->sendText($chatId, 'Не удалось получить случайный факт. Попробуй позже.');
             return;
         }
+        statsLog('random_fact', 0);
         $this->sendText($chatId, $text);
     }
 
@@ -271,9 +295,14 @@ final class Bot
 
     private function startQuiz(UserContext $context, int $userId, int $chatId): void
     {
+        $paragraph = $this->loadParagraph($context, $userId, $chatId);
+        if ($paragraph === null) {
+            return;
+        }
         $this->sendText($chatId, 'Составляю тест…');
+        $tokensBefore = $this->tokens();
         try {
-            $quiz = Quiz::generate($this->llm(), $context->paragraphText);
+            $quiz = Quiz::generate($this->llm(), $paragraph[1]);
         } catch (QuizGenerationError $e) {
             logException("ИИ вернул неверный тест для пользователя $userId", $e);
             $this->sendBackToMenu($chatId, 'Не удалось составить тест. Попробуй ещё раз.');
@@ -283,17 +312,25 @@ final class Bot
             return;
         }
 
+        statsLog('quiz', $this->tokens() - $tokensBefore);
         $context->quiz = $quiz;
-        $this->sendText($chatId, $quiz->format($context->paragraphTitle), Keyboards::quiz($quiz));
+        $this->sendText($chatId, $quiz->format($paragraph[0]), Keyboards::quiz($quiz));
     }
 
-    private function handleQuizCallback(string $callbackId, UserContext $context, int $chatId, string $payload): void
+    private function handleQuizCallback(string $callbackId, UserContext $context, int $userId, int $chatId, string $payload): void
     {
         $quiz = $context->quiz;
         if ($quiz === null || $quiz->finished) {
             $this->ack($callbackId, 'Этот тест уже завершён.');
             return;
         }
+
+        $paragraph = $this->loadParagraph($context, $userId, $chatId);
+        if ($paragraph === null) {
+            $this->ack($callbackId, 'Не удалось загрузить параграф. Попробуй позже.');
+            return;
+        }
+        $title = $paragraph[0];
 
         // Правка сообщения сама подтверждает callback, поэтому ack вызывается только в ветках без неё.
         if (str_starts_with($payload, 'quiz:toggle:')) {
@@ -306,7 +343,7 @@ final class Bot
             $quiz->toggle($index);
             $this->editMessage(
                 $callbackId,
-                $quiz->format($context->paragraphTitle),
+                $quiz->format($title),
                 [Keyboards::quiz($quiz)]
             );
             return;
@@ -318,11 +355,31 @@ final class Bot
         }
 
         $quiz->finished = true;
-        $this->editMessage($callbackId, $quiz->format($context->paragraphTitle, true), []);
+        $this->editMessage($callbackId, $quiz->format($title, true), []);
         $this->sendMenu($chatId, 'Что дальше?');
     }
 
     // --- Отправка ---
+
+    /** Заголовок и текст параграфа всегда берутся из API книг, в сессии они не хранятся. @return array{0:string,1:string}|null */
+    private function loadParagraph(UserContext $context, int $userId, int $chatId): ?array
+    {
+        if ($context->bookId === null || $context->paragraphId === null) {
+            return null;
+        }
+        try {
+            return $this->books->fetchParagraph($context->bookId, $context->paragraphId);
+        } catch (HttpException | BookApiError $e) {
+            logException("Не удалось загрузить параграф {$context->paragraphId} книги {$context->bookId}", $e);
+            $this->sendBackToMenu($chatId, 'Не удалось загрузить параграф. Попробуй позже.');
+            return null;
+        }
+    }
+
+    private function tokens(): int
+    {
+        return $this->llm !== null ? $this->llm->tokensUsed() : 0;
+    }
 
     private function llm(): LlmClient
     {
@@ -359,7 +416,7 @@ final class Bot
     {
         if ($error instanceof LlmConfigurationError) {
             botLog('error', $error->getMessage());
-            $text = 'Для этой функции настрой LLM (DEEPSEEK_API_KEY или GigaChat) в файле .env.';
+            $text = 'Для этой функции настрой LLM (DEEPSEEK_API_KEY) в файле .env.';
         } else {
             logException("Запрос к ИИ не удался для пользователя $userId", $error);
             $text = 'Не удалось получить ответ от ИИ. Попробуй ещё раз позже.';

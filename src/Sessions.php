@@ -9,8 +9,6 @@ final class UserContext
         public string $stage = 'choose_book',
         public ?int $bookId = null,
         public ?int $paragraphId = null,
-        public string $paragraphTitle = '',
-        public string $paragraphText = '',
         public ?Quiz $quiz = null
     ) {
     }
@@ -21,8 +19,6 @@ final class UserContext
             'stage' => $this->stage,
             'book_id' => $this->bookId,
             'paragraph_id' => $this->paragraphId,
-            'paragraph_title' => $this->paragraphTitle,
-            'paragraph_text' => $this->paragraphText,
             'quiz' => $this->quiz?->toArray(),
         ];
     }
@@ -33,8 +29,6 @@ final class UserContext
             (string)($data['stage'] ?? 'choose_book'),
             isset($data['book_id']) ? (int)$data['book_id'] : null,
             isset($data['paragraph_id']) ? (int)$data['paragraph_id'] : null,
-            (string)($data['paragraph_title'] ?? ''),
-            (string)($data['paragraph_text'] ?? ''),
             isset($data['quiz']) && is_array($data['quiz']) ? Quiz::fromArray($data['quiz']) : null
         );
     }

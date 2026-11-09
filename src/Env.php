@@ -43,7 +43,7 @@ function resolvePath(string $path): string
 }
 
 /**
- * Корневой сертификат Минцифры для MAX API и GigaChat: RUSSIAN_CA_BUNDLE или certs/russian_trusted_root_ca.pem.
+ * Корневой сертификат Минцифры для MAX API: RUSSIAN_CA_BUNDLE или certs/russian_trusted_root_ca.pem.
  * RUSSIAN_CA_BUNDLE=system оставляет системное хранилище сертификатов.
  */
 function russianCaBundle(): ?string

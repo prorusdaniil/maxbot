@@ -8,7 +8,13 @@
    - `MAX_BOT_TOKEN` — токен бота MAX;
    - `MAX_WEBHOOK_SECRET` — секрет вебхука (символы A-Z, a-z, 0-9, `_`, `-`);
    - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` — доступ к удалённой базе данных;
-   - ключ ИИ: `DEEPSEEK_API_KEY` (или `GIGACHAT_CREDENTIALS` и `LLM_PROVIDER=gigachat`).
+   - ключ ИИ: `DEEPSEEK_API_KEY`;
+   - необязательно `LOG_LEVEL` (`DEBUG`, `INFO`, `WARNING`, `ERROR`; по умолчанию `ERROR`).
+
+Бизнес-логика отделена от кода: промпты — в `prompts/*.txt`, меню бота — в `config/menu.php`,
+нейросеть — в `src/Llm/` (интерфейс `LlmClient` и реализация `DeepSeekClient`).
+Формат строки лога: `время УРОВЕНЬ user=<id MAX> username=<имя> сообщение`.
+Статистика использования пишется отдельно в `logs/stats.log`: `время INFO user_id user_name feature_id tokens`; отключается `STATS_ENABLED=false`.
 
 ## Запуск сервера
 
