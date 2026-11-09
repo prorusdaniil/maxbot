@@ -56,9 +56,14 @@ try {
         $total_tokens += (int)$row['tokens'];
     }
     // Запросы без книги (например, случайный факт) в разрезе книг не показываем.
+    try {
+        $book_titles = $pdo->query('SELECT id, title FROM books')->fetchAll(PDO::FETCH_KEY_PAIR);
+    } catch (Throwable $e) {
+        $book_titles = [];
+    }
     foreach ($aggregate('book_id', 'book_id') as $row) {
         if ($row['book_id'] === null) continue;
-        $book_stats[] = ['book_id' => 'Книга #' . $row['book_id'], 'requests' => (int)$row['requests'], 'tokens' => (int)$row['tokens']];
+        $book_stats[] = ['book_id' => $book_titles[(int)$row['book_id']] ?? ('Книга #' . $row['book_id']), 'requests' => (int)$row['requests'], 'tokens' => (int)$row['tokens']];
     }
     foreach ($aggregate('user_id, MAX(user_name) AS user_name', 'user_id') as $row) {
         $user_stats[] = ['user_id' => $row['user_id'], 'name' => $row['user_name'] ?? '', 'requests' => (int)$row['requests'], 'tokens' => (int)$row['tokens']];
@@ -187,7 +192,7 @@ $top_feature = !empty($feature_stats) ? $feature_stats[0]['feature'] : '-';
                 }, $feature_stats)) ?>
 
                 <!-- 2. Популярные книги -->
-                <?= renderTable('Популярные книги', ['Идентификатор', 'Кол-во обращений', 'Потрачено токенов'], array_map(function($s) {
+                <?= renderTable('Популярные книги', ['Название', 'Кол-во обращений', 'Потрачено токенов'], array_map(function($s) {
                     return [$s['book_id'], $s['requests'], $s['tokens']];
                 }, $book_stats)) ?>
             </div>
