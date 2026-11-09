@@ -169,14 +169,14 @@ final class Bot
             return;
         }
         $this->sendText($chatId, 'Думаю…');
-        $tokensBefore = $this->tokens();
+        $usageBefore = $this->usage();
         try {
             $answer = answerQuestion($this->llm(), $paragraph[1], $question);
         } catch (LlmError $e) {
             $this->sendLlmError($chatId, $e, $userId);
             return;
         }
-        statsLog('discuss', $this->tokens() - $tokensBefore, $context->bookId, $context->paragraphId);
+        statsLog('discuss', $context->bookId, $context->paragraphId, $this->usageSince($usageBefore));
         $this->sendLongText($chatId, $answer);
         $this->sendBackToMenu($chatId, 'Задай ещё вопрос или вернись в меню.');
     }
@@ -273,7 +273,7 @@ final class Bot
             return;
         }
 
-        statsLog($feature, 0, $context->bookId, $context->paragraphId);
+        statsLog($feature, $context->bookId, $context->paragraphId);
         $this->sendLongText($chatId, $text);
         $this->sendMenu($chatId, 'Что дальше?');
     }
@@ -287,7 +287,7 @@ final class Bot
             $this->sendText($chatId, 'Не удалось получить случайный факт. Попробуй позже.');
             return;
         }
-        statsLog('random_fact', 0);
+        statsLog('random_fact');
         $this->sendText($chatId, $text);
     }
 
@@ -300,7 +300,7 @@ final class Bot
             return;
         }
         $this->sendText($chatId, 'Составляю тест…');
-        $tokensBefore = $this->tokens();
+        $usageBefore = $this->usage();
         try {
             $quiz = Quiz::generate($this->llm(), $paragraph[1]);
         } catch (QuizGenerationError $e) {
@@ -312,7 +312,7 @@ final class Bot
             return;
         }
 
-        statsLog('quiz', $this->tokens() - $tokensBefore, $context->bookId, $context->paragraphId);
+        statsLog('quiz', $context->bookId, $context->paragraphId, $this->usageSince($usageBefore));
         $context->quiz = $quiz;
         $this->sendText($chatId, $quiz->format($paragraph[0]), Keyboards::quiz($quiz));
     }
@@ -376,9 +376,15 @@ final class Bot
         }
     }
 
-    private function tokens(): int
+    private function usage(): array
     {
-        return $this->llm !== null ? $this->llm->tokensUsed() : 0;
+        return $this->llm !== null ? $this->llm->usage() : ['input' => 0, 'cached' => 0, 'output' => 0];
+    }
+
+    private function usageSince(array $before): array
+    {
+        $now = $this->usage();
+        return array_map(fn($k) => $now[$k] - $before[$k], array_combine(array_keys($now), array_keys($now)));
     }
 
     private function llm(): LlmClient

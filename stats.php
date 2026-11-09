@@ -31,10 +31,31 @@ switch ($period) {
         break;
 }
 
+// Цены в долларах за 1 млн токенов
+const PRICE_INPUT = 0.3;
+const PRICE_CACHED = 0.006;
+const PRICE_OUTPUT = 1.2;
+
+function usd(int $tokens, float $pricePerMillion): float
+{
+    return $tokens * $pricePerMillion / 1000000;
+}
+
+function formatUsd(float $value): string
+{
+    return '$' . number_format($value, 4, '.', ' ');
+}
+
+/** Ячейка с токенами и мелкой суммой в долларах под ними. */
+function tokenCell(int $tokens, float $price): array
+{
+    return [$tokens, formatUsd(usd($tokens, $price))];
+}
+
 // ---------------------------------------------------------
 // ЧТЕНИЕ И СБОР СТАТИСТИКИ
 // ---------------------------------------------------------
-$total_tokens = 0;
+$total_input = $total_cached = $total_output = 0;
 $total_requests = 0;
 $feature_stats = [];
 $book_stats = [];
@@ -44,16 +65,20 @@ try {
     $pdo = db();
     $since = date('Y-m-d H:i:s', $start_time);
     $aggregate = function (string $select, string $group) use ($pdo, $since): array {
-        $stmt = $pdo->prepare("SELECT $select, COUNT(*) AS requests, COALESCE(SUM(tokens_used), 0) AS tokens
+        $stmt = $pdo->prepare("SELECT $select, COUNT(*) AS requests, COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                                      COALESCE(SUM(cached_tokens), 0) AS cached_tokens,
+                                      COALESCE(SUM(output_tokens), 0) AS output_tokens
                                FROM stats WHERE created_at >= ? GROUP BY $group");
         $stmt->execute([$since]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     };
 
     foreach ($aggregate('feature', 'feature') as $row) {
-        $feature_stats[] = ['feature' => $row['feature'], 'requests' => (int)$row['requests'], 'tokens' => (int)$row['tokens']];
+        $feature_stats[] = ['feature' => $row['feature'], 'requests' => (int)$row['requests'], 'input' => (int)$row['input_tokens'], 'cached' => (int)$row['cached_tokens'], 'output' => (int)$row['output_tokens']];
         $total_requests += (int)$row['requests'];
-        $total_tokens += (int)$row['tokens'];
+        $total_input += (int)$row['input_tokens'];
+        $total_cached += (int)$row['cached_tokens'];
+        $total_output += (int)$row['output_tokens'];
     }
     // Запросы без книги (например, случайный факт) в разрезе книг не показываем.
     try {
@@ -63,10 +88,10 @@ try {
     }
     foreach ($aggregate('book_id', 'book_id') as $row) {
         if ($row['book_id'] === null) continue;
-        $book_stats[] = ['book_id' => $book_titles[(int)$row['book_id']] ?? ('Книга #' . $row['book_id']), 'requests' => (int)$row['requests'], 'tokens' => (int)$row['tokens']];
+        $book_stats[] = ['book_id' => $book_titles[(int)$row['book_id']] ?? ('Книга #' . $row['book_id']), 'requests' => (int)$row['requests'], 'input' => (int)$row['input_tokens'], 'cached' => (int)$row['cached_tokens'], 'output' => (int)$row['output_tokens']];
     }
     foreach ($aggregate('user_id, MAX(user_name) AS user_name', 'user_id') as $row) {
-        $user_stats[] = ['user_id' => $row['user_id'], 'name' => $row['user_name'] ?? '', 'requests' => (int)$row['requests'], 'tokens' => (int)$row['tokens']];
+        $user_stats[] = ['user_id' => $row['user_id'], 'name' => $row['user_name'] ?? '', 'requests' => (int)$row['requests'], 'input' => (int)$row['input_tokens'], 'cached' => (int)$row['cached_tokens'], 'output' => (int)$row['output_tokens']];
     }
 } catch (Throwable $e) {
     logException('Не удалось прочитать статистику', $e);
@@ -85,7 +110,7 @@ $user_stats_by_req = $user_stats;
 usort($user_stats_by_req, function($a, $b) { return $b['requests'] <=> $a['requests']; });
 
 $user_stats_by_tokens = $user_stats;
-usort($user_stats_by_tokens, function($a, $b) { return $b['tokens'] <=> $a['tokens']; });
+usort($user_stats_by_tokens, function($a, $b) { return ($b['input'] + $b['cached'] + $b['output']) <=> ($a['input'] + $a['cached'] + $a['output']); });
 
 // Вспомогательная функция для рендеринга таблиц
 function renderTable($title, $headers, $rows) {
@@ -113,7 +138,12 @@ function renderTable($title, $headers, $rows) {
                                 <tr class="hover:bg-slate-50 transition-colors">
                                     <?php $first = true; foreach($row as $cell): ?>
                                         <td class="px-6 py-3 whitespace-nowrap text-sm <?= $first ? 'font-medium text-slate-900' : 'text-slate-600 text-right' ?>">
-                                            <?= is_numeric($cell) ? number_format($cell, 0, '.', ' ') : htmlspecialchars($cell) ?>
+                                            <?php if (is_array($cell)): ?>
+                                                <?= number_format($cell[0], 0, '.', ' ') ?>
+                                                <div class="text-xs text-slate-400"><?= htmlspecialchars($cell[1]) ?></div>
+                                            <?php else: ?>
+                                                <?= is_numeric($cell) ? number_format($cell, 0, '.', ' ') : htmlspecialchars($cell) ?>
+                                            <?php endif; ?>
                                         </td>
                                     <?php $first = false; endforeach; ?>
                                 </tr>
@@ -128,6 +158,7 @@ function renderTable($title, $headers, $rows) {
     return ob_get_clean();
 }
 
+$total_cost = usd($total_input, PRICE_INPUT) + usd($total_cached, PRICE_CACHED) + usd($total_output, PRICE_OUTPUT);
 $unique_users = count($user_stats);
 $top_feature = !empty($feature_stats) ? $feature_stats[0]['feature'] : '-';
 
@@ -165,11 +196,11 @@ $top_feature = !empty($feature_stats) ? $feature_stats[0]['feature'] : '-';
         <!-- Основной Контент -->
         <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
             <!-- Карточки Основных Показателей -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
-                    <span class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Общий расход токенов</span>
-                    <span class="text-3xl font-extrabold text-indigo-600"><?= number_format($total_tokens, 0, '.', ' ') ?></span>
-                </div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-10 flex items-center justify-between">
+                <span class="text-slate-500 text-xs font-bold uppercase tracking-wider">Общие расходы</span>
+                <span class="text-3xl font-extrabold text-slate-800"><?= formatUsd($total_cost) ?></span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
                     <span class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Всего обращений</span>
                     <span class="text-3xl font-extrabold text-slate-800"><?= number_format($total_requests, 0, '.', ' ') ?></span>
@@ -183,29 +214,46 @@ $top_feature = !empty($feature_stats) ? $feature_stats[0]['feature'] : '-';
                     <span class="text-3xl font-extrabold text-emerald-600 truncate uppercase"><?= htmlspecialchars($top_feature) ?></span>
                 </div>
             </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+                    <span class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Входящие токены ($0.3/1M)</span>
+                    <span class="text-3xl font-extrabold text-slate-800"><?= number_format($total_input, 0, '.', ' ') ?></span>
+                    <span class="text-xs text-slate-400 mt-1"><?= formatUsd(usd($total_input, PRICE_INPUT)) ?></span>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+                    <span class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Кэшированные токены ($0.006/1M)</span>
+                    <span class="text-3xl font-extrabold text-slate-800"><?= number_format($total_cached, 0, '.', ' ') ?></span>
+                    <span class="text-xs text-slate-400 mt-1"><?= formatUsd(usd($total_cached, PRICE_CACHED)) ?></span>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+                    <span class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Исходящие токены ($1.2/1M)</span>
+                    <span class="text-3xl font-extrabold text-slate-800"><?= number_format($total_output, 0, '.', ' ') ?></span>
+                    <span class="text-xs text-slate-400 mt-1"><?= formatUsd(usd($total_output, PRICE_OUTPUT)) ?></span>
+                </div>
+            </div>
 
             <!-- Сетка Таблиц -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                 <!-- 1. Использование фич -->
-                <?= renderTable('Использование фич (по убыванию)', ['Фича', 'Кол-во обращений', 'Потрачено токенов'], array_map(function($s) {
-                    return [$s['feature'], $s['requests'], $s['tokens']];
+                <?= renderTable('Использование фич (по убыванию)', ['Фича', 'Кол-во обращений', 'Входящие', 'Кэш', 'Исходящие'], array_map(function($s) {
+                    return [$s['feature'], $s['requests'], tokenCell($s['input'], PRICE_INPUT), tokenCell($s['cached'], PRICE_CACHED), tokenCell($s['output'], PRICE_OUTPUT)];
                 }, $feature_stats)) ?>
 
                 <!-- 2. Популярные книги -->
-                <?= renderTable('Популярные книги', ['Название', 'Кол-во обращений', 'Потрачено токенов'], array_map(function($s) {
-                    return [$s['book_id'], $s['requests'], $s['tokens']];
+                <?= renderTable('Популярные книги', ['Название', 'Кол-во обращений', 'Входящие', 'Кэш', 'Исходящие'], array_map(function($s) {
+                    return [$s['book_id'], $s['requests'], tokenCell($s['input'], PRICE_INPUT), tokenCell($s['cached'], PRICE_CACHED), tokenCell($s['output'], PRICE_OUTPUT)];
                 }, $book_stats)) ?>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <!-- 3. Активные пользователи (по фичам / обращениям) -->
-                <?= renderTable('Топ пользователей по активности (Обращения)', ['Пользователь', 'Обращения', 'Токены'], array_map(function($s) {
-                    return [$s['name'] . ' (#' . $s['user_id'] . ')', $s['requests'], $s['tokens']];
+                <?= renderTable('Топ пользователей по активности (Обращения)', ['Пользователь', 'Обращения', 'Входящие', 'Кэш', 'Исходящие'], array_map(function($s) {
+                    return [$s['name'] . ' (#' . $s['user_id'] . ')', $s['requests'], tokenCell($s['input'], PRICE_INPUT), tokenCell($s['cached'], PRICE_CACHED), tokenCell($s['output'], PRICE_OUTPUT)];
                 }, $user_stats_by_req)) ?>
 
                 <!-- 4. Активные пользователи (по токенам) -->
-                <?= renderTable('Топ пользователей по расходам (Токены)', ['Пользователь', 'Токены', 'Обращения'], array_map(function($s) {
-                    return [$s['name'] . ' (#' . $s['user_id'] . ')', $s['tokens'], $s['requests']];
+                <?= renderTable('Топ пользователей по расходам (входящие + кэш + исходящие)', ['Пользователь', 'Обращения', 'Входящие', 'Кэш', 'Исходящие'], array_map(function($s) {
+                    return [$s['name'] . ' (#' . $s['user_id'] . ')', $s['requests'], tokenCell($s['input'], PRICE_INPUT), tokenCell($s['cached'], PRICE_CACHED), tokenCell($s['output'], PRICE_OUTPUT)];
                 }, $user_stats_by_tokens)) ?>
             </div>
             

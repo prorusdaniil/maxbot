@@ -96,12 +96,12 @@ class FakeLlm implements LlmClient
     public string $reply = '';
     public array $requests = [];
 
-    public function tokensUsed(): int
+    public function usage(): array
     {
-        return 0;
+        return ['input' => 0, 'cached' => 0, 'output' => 0];
     }
 
-    public function complete(string $systemPrompt, string $userContent): string
+    public function complete(string $systemPrompt, string $userContent, ?int $maxTokens = null): string
     {
         $this->requests[] = [$systemPrompt, $userContent];
         return $this->reply;
@@ -342,11 +342,11 @@ $statsDb = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERR
 (new Sessions($statsDb))->ensureSchema();
 $GLOBALS['__db'] = $statsDb;
 setLogUser(9, 'ivan');
-statsLog('quiz', 5, 3, 12);
-$row = $statsDb->query('SELECT user_id, user_name, book_id, paragraph_id, feature, tokens_used FROM stats')->fetch(PDO::FETCH_NUM);
-check('статистика пишется в БД', $row === ['9', 'ivan', '3', '12', 'quiz', '5'] || $row === [9, 'ivan', 3, 12, 'quiz', 5], json_encode($row));
+statsLog('quiz', 3, 12, ['input' => 5, 'cached' => 2, 'output' => 1]);
+$row = $statsDb->query('SELECT user_id, user_name, book_id, paragraph_id, feature, input_tokens, cached_tokens, output_tokens FROM stats')->fetch(PDO::FETCH_NUM);
+check('статистика пишется в БД', $row === ['9', 'ivan', '3', '12', 'quiz', '5', '2', '1'] || $row === [9, 'ivan', 3, 12, 'quiz', 5, 2, 1], json_encode($row));
 putenv('STATS_ENABLED=false');
-statsLog('quiz', 5);
+statsLog('quiz');
 check('статистику можно отключить', (int)$statsDb->query('SELECT COUNT(*) FROM stats')->fetchColumn() === 1);
 putenv('STATS_ENABLED');
 setLogUser(null);

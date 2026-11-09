@@ -72,9 +72,25 @@ final class Sessions
                 book_id INT NULL,
                 paragraph_id INT NULL,
                 feature VARCHAR(32) NOT NULL,
-                tokens_used INT NOT NULL
+                input_tokens INT NOT NULL DEFAULT 0,
+                cached_tokens INT NOT NULL DEFAULT 0,
+                output_tokens INT NOT NULL DEFAULT 0
             )' . $suffix
         );
+        foreach (['input_tokens', 'cached_tokens', 'output_tokens'] as $column) {
+            try {
+                $this->pdo->exec("ALTER TABLE stats ADD COLUMN $column INT NOT NULL DEFAULT 0");
+            } catch (PDOException $e) {
+                // колонка уже есть
+            }
+        }
+        try {
+            // Старые строки хранили только сумму: переносим её во входящие, затем убираем колонку.
+            $this->pdo->exec('UPDATE stats SET input_tokens = tokens_used WHERE input_tokens = 0 AND cached_tokens = 0 AND output_tokens = 0');
+            $this->pdo->exec('ALTER TABLE stats DROP COLUMN tokens_used');
+        } catch (PDOException $e) {
+            // колонки уже нет
+        }
     }
 
     private function isMysql(): bool

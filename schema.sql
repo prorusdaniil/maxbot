@@ -14,5 +14,7 @@ CREATE TABLE IF NOT EXISTS stats (
     book_id INT NULL,
     paragraph_id INT NULL,
     feature VARCHAR(32) NOT NULL,
-    tokens_used INT NOT NULL
+    input_tokens INT NOT NULL DEFAULT 0,
+    cached_tokens INT NOT NULL DEFAULT 0,
+    output_tokens INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

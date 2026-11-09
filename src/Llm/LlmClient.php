@@ -13,9 +13,15 @@ class LlmConfigurationError extends LlmError
 /** Интерфейс нейросети: приложение работает только с ним, а API каждой нейросети — в своём файле. */
 interface LlmClient
 {
-    /** @throws LlmError */
-    public function complete(string $systemPrompt, string $userContent): string;
+    /**
+     * $maxTokens — жёсткий лимит токенов ответа (null — без лимита).
+     * @throws LlmError
+     */
+    public function complete(string $systemPrompt, string $userContent, ?int $maxTokens = null): string;
 
-    /** Суммарный расход токенов всех запросов этого клиента. */
-    public function tokensUsed(): int;
+    /**
+     * Суммарная разбивка токенов: input — без кэша, cached — из кэша промпта, output — ответ.
+     * @return array{input:int,cached:int,output:int}
+     */
+    public function usage(): array;
 }

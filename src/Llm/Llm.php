@@ -25,6 +25,7 @@ function answerQuestion(LlmClient $llm, string $paragraphText, string $question)
 {
     return $llm->complete(
         Prompts::get('discuss'),
-        "Текст параграфа:\n$paragraphText\n\nВопрос ученика: $question"
+        "Текст параграфа:\n$paragraphText\n\nВопрос ученика: $question",
+        800
     );
 }

@@ -17,8 +17,8 @@ function logUserFields(): array
     return [$GLOBALS['__log_user_id'] ?? '-', $name === null ? '-' : preg_replace('/\s+/u', '_', $name)];
 }
 
-/** Статистика использования: строка в таблице stats; отключается STATS_ENABLED=false. Сбой записи не мешает боту. */
-function statsLog(string $feature, int $tokens, ?int $bookId = null, ?int $paragraphId = null): void
+/** Статистика использования ($usage — input/cached/output за запрос): строка в таблице stats; отключается STATS_ENABLED=false. Сбой записи не мешает боту. */
+function statsLog(string $feature, ?int $bookId = null, ?int $paragraphId = null, array $usage = []): void
 {
     if (in_array(strtolower(env('STATS_ENABLED', 'true') ?? 'true'), ['0', 'false', 'off', 'no'], true)) {
         return;
@@ -29,9 +29,12 @@ function statsLog(string $feature, int $tokens, ?int $bookId = null, ?int $parag
     }
     try {
         db()->prepare(
-            'INSERT INTO stats (created_at, user_id, user_name, book_id, paragraph_id, feature, tokens_used)
-             VALUES (?, ?, ?, ?, ?, ?, ?)'
-        )->execute([date('Y-m-d H:i:s'), $userId, $GLOBALS['__log_user_name'] ?? null, $bookId, $paragraphId, $feature, $tokens]);
+            'INSERT INTO stats (created_at, user_id, user_name, book_id, paragraph_id, feature, input_tokens, cached_tokens, output_tokens)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        )->execute([
+            date('Y-m-d H:i:s'), $userId, $GLOBALS['__log_user_name'] ?? null, $bookId, $paragraphId, $feature,
+            (int)($usage['input'] ?? 0), (int)($usage['cached'] ?? 0), (int)($usage['output'] ?? 0),
+        ]);
     } catch (Throwable $e) {
         logException('Не удалось записать статистику', $e);
     }

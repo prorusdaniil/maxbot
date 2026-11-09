@@ -15,23 +15,29 @@ final class DeepSeekClient implements LlmClient
     ) {
     }
 
-    private int $tokens = 0;
+    private int $inputTokens = 0;
+    private int $cachedTokens = 0;
+    private int $outputTokens = 0;
 
-    public function tokensUsed(): int
+    public function usage(): array
     {
-        return $this->tokens;
+        return ['input' => $this->inputTokens, 'cached' => $this->cachedTokens, 'output' => $this->outputTokens];
     }
 
-    public function complete(string $systemPrompt, string $userContent): string
+    public function complete(string $systemPrompt, string $userContent, ?int $maxTokens = null): string
     {
-        $payload = json_encode([
+        $body = [
             'model' => $this->model,
             'messages' => [
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => $userContent],
             ],
             'stream' => false,
-        ], JSON_UNESCAPED_UNICODE);
+        ];
+        if ($maxTokens !== null) {
+            $body['max_tokens'] = $maxTokens;
+        }
+        $payload = json_encode($body, JSON_UNESCAPED_UNICODE);
 
         botLog('debug', "Запрос к DeepSeek ({$this->model}): " . $userContent);
         $data = $this->postJson($payload);
@@ -43,7 +49,12 @@ final class DeepSeekClient implements LlmClient
         if (trim($content) === '') {
             throw new LlmError('DeepSeek: пустой ответ');
         }
-        $this->tokens += (int)($data['usage']['total_tokens'] ?? 0);
+        $usage = $data['usage'] ?? [];
+        $prompt = (int)($usage['prompt_tokens'] ?? 0);
+        $cached = min($prompt, (int)($usage['prompt_cache_hit_tokens'] ?? 0));
+        $this->cachedTokens += $cached;
+        $this->inputTokens += $prompt - $cached;
+        $this->outputTokens += (int)($usage['completion_tokens'] ?? 0);
         botLog('debug', 'Ответ DeepSeek: ' . trim($content));
         return trim($content);
     }
