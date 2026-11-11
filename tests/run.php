@@ -217,14 +217,40 @@ $api->reset();
 run(callback($u, 'discuss'));
 check('режим обсуждения', str_contains($api->lastText(), 'Напиши свой вопрос'));
 $api->reset();
-run(message($u, 'Почему?'));
+run(message($u, 'Почему это происходит именно так?'));
 $texts = array_column($api->sent(), 'text');
 check('ответ ИИ', $texts === ['Думаю…', 'Ответ учителя', 'Задай ещё вопрос или вернись в меню.'], json_encode($texts));
-check('в ИИ ушёл текст и вопрос', str_contains($llm->requests[0][1], 'Текст параграфа.') && str_contains($llm->requests[0][1], 'Вопрос ученика: Почему?'));
+check('в ИИ ушёл текст и вопрос', str_contains($llm->requests[0][1], 'Текст параграфа.') && str_contains($llm->requests[0][1], 'Вопрос ученика: Почему это происходит именно так?'));
+
+$api->reset();
+run(message($u, 'Почему?'));
+$texts = array_column($api->sent(), 'text');
+check('короткий вопрос не уходит в ИИ', count($llm->requests) === 1 && str_starts_with($texts[0], 'Вопрос не по теме'), json_encode($texts));
+
+run(message($u, 'Почему?'));
+run(message($u, 'Почему?'));
+$api->reset();
+run(message($u, 'Почему?'));
+run(message($u, 'Почему это происходит именно так?'));
+$texts = array_column($api->sent(), 'text');
+check('после 4 коротких подряд лимит обнуляется', count($llm->requests) === 1 && str_starts_with($texts[1], 'Лимит вопросов'), json_encode($texts));
 
 $api->reset();
 run(callback($u, 'menu'));
 check('возврат в меню', count($api->sent()) === 1);
+
+$u2 = 43;
+foreach ([message($u2, '/start'), callback($u2, 'book:3'), message($u2, '7'), callback($u2, 'discuss')] as $step) {
+    run($step);
+}
+$llm->reply = 'Вопрос не касается темы параграфа.';
+$before = count($llm->requests);
+for ($i = 0; $i < 4; $i++) {
+    run(message($u2, 'Расскажи про погоду в Африке?'));
+}
+$api->reset();
+run(message($u2, 'Расскажи про погоду в Африке?'));
+check('4 ответа «не по теме» обнуляют лимит', count($llm->requests) === $before + 4 && str_starts_with($api->sent()[0]['text'], 'Лимит вопросов'), json_encode($api->sent()));
 
 echo "Тест\n";
 $llm->reply = "Вот тест:\n```json\n" . json_encode([

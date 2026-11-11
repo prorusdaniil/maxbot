@@ -9,8 +9,34 @@ final class UserContext
         public string $stage = 'choose_book',
         public ?int $bookId = null,
         public ?int $paragraphId = null,
-        public ?Quiz $quiz = null
+        public ?Quiz $quiz = null,
+        public string $discussDay = '',
+        public int $discussCount = 0,
+        public int $offTopicStreak = 0
     ) {
+    }
+
+    /** Новый диалог с сохранением дневной квоты обсуждений (иначе её можно сбросить через /start). */
+    public static function restart(?self $previous, string $stage, ?int $bookId = null): self
+    {
+        $context = new self($stage, $bookId);
+        if ($previous !== null) {
+            $context->discussDay = $previous->discussDay;
+            $context->discussCount = $previous->discussCount;
+            $context->offTopicStreak = $previous->offTopicStreak;
+        }
+        return $context;
+    }
+
+    /** Сбрасывает счётчики, если наступил новый день. */
+    public function rollDiscussDay(): void
+    {
+        $today = date('Y-m-d');
+        if ($this->discussDay !== $today) {
+            $this->discussDay = $today;
+            $this->discussCount = 0;
+            $this->offTopicStreak = 0;
+        }
     }
 
     public function toArray(): array
@@ -20,6 +46,9 @@ final class UserContext
             'book_id' => $this->bookId,
             'paragraph_id' => $this->paragraphId,
             'quiz' => $this->quiz?->toArray(),
+            'discuss_day' => $this->discussDay,
+            'discuss_count' => $this->discussCount,
+            'off_topic_streak' => $this->offTopicStreak,
         ];
     }
 
@@ -29,7 +58,10 @@ final class UserContext
             (string)($data['stage'] ?? 'choose_book'),
             isset($data['book_id']) ? (int)$data['book_id'] : null,
             isset($data['paragraph_id']) ? (int)$data['paragraph_id'] : null,
-            isset($data['quiz']) && is_array($data['quiz']) ? Quiz::fromArray($data['quiz']) : null
+            isset($data['quiz']) && is_array($data['quiz']) ? Quiz::fromArray($data['quiz']) : null,
+            (string)($data['discuss_day'] ?? ''),
+            (int)($data['discuss_count'] ?? 0),
+            (int)($data['off_topic_streak'] ?? 0)
         );
     }
 }
@@ -99,12 +131,14 @@ final class Sessions
     }
 
     /** Не даёт двум обновлениям одного пользователя менять состояние одновременно. */
-    public function lock(int $userId, int $timeoutSeconds = 60): void
+    public function lock(int $userId, int $timeoutSeconds = 60): bool
     {
-        if ($this->isMysql()) {
-            $stmt = $this->pdo->prepare('SELECT GET_LOCK(?, ?)');
-            $stmt->execute(["maxbot_user_$userId", $timeoutSeconds]);
+        if (!$this->isMysql()) {
+            return true;
         }
+        $stmt = $this->pdo->prepare('SELECT GET_LOCK(?, ?)');
+        $stmt->execute(["maxbot_user_$userId", $timeoutSeconds]);
+        return (int)$stmt->fetchColumn() === 1;
     }
 
     public function unlock(int $userId): void

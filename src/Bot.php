@@ -10,7 +10,19 @@ final class Bot
     // MAX отклоняет подтверждение callback без message и без notification (ошибка 400).
     private const DEFAULT_ACK = 'Секунду…';
 
+    // Вопросы короче этого считаются не по теме и в нейросеть не отправляются.
+    private const MIN_QUESTION_LENGTH = 20;
+
+    // Сколько подряд вопросов не по теме допускается, дальше лимит на день становится нулевым.
+    private const MAX_OFF_TOPIC_STREAK = 3;
+
     private ?LlmClient $llm = null;
+
+    /** Дневной лимит вопросов в обсуждении на пользователя (DISCUSS_DAILY_LIMIT в .env). */
+    private static function discussDailyLimit(): int
+    {
+        return max(0, (int)env('DISCUSS_DAILY_LIMIT', '10'));
+    }
 
     /** @param callable():LlmClient $llmFactory может бросить LlmConfigurationError */
     public function __construct(
@@ -65,7 +77,12 @@ final class Bot
         [$chatId, $userId] = $ids;
         setLogUser($userId, self::extractUserName($update));
 
-        $this->sessions->lock($userId);
+        // Сообщения не ждут блокировку: пока готовится ответ, новые вопросы не принимаются.
+        $isMessage = $update['update_type'] === 'message_created';
+        if (!$this->sessions->lock($userId, $isMessage ? 0 : 60)) {
+            $this->sendText($chatId, 'Подожди, я ещё отвечаю на предыдущий вопрос.');
+            return;
+        }
         try {
             match ($update['update_type']) {
                 'message_created' => $this->onMessage($update, $userId, $chatId),
@@ -119,7 +136,7 @@ final class Bot
     /** Сбрасывает диалог и отправляет приветствие с клавиатурой выбора книги. */
     private function sendStart(int $userId, int $chatId): void
     {
-        $this->sessions->set($userId, new UserContext('choose_book'));
+        $this->sessions->set($userId, UserContext::restart($this->sessions->get($userId), 'choose_book'));
         try {
             $books = $this->books->fetchBooks();
         } catch (HttpException | BookApiError $e) {
@@ -140,7 +157,7 @@ final class Bot
 
         if ($context->bookId === null) {
             botLog('error', "У контекста пользователя $userId нет выбранной книги");
-            $this->sessions->set($userId, new UserContext('choose_book'));
+            $this->sessions->set($userId, UserContext::restart($this->sessions->get($userId), 'choose_book'));
             $this->sendText($chatId, 'Не удалось определить книгу. Начни заново командой /start.');
             return;
         }
@@ -168,6 +185,16 @@ final class Bot
         if ($paragraph === null) {
             return;
         }
+        $context->rollDiscussDay();
+        if ($context->discussCount >= self::discussDailyLimit() || $context->offTopicStreak > self::MAX_OFF_TOPIC_STREAK) {
+            $this->sendBackToMenu($chatId, 'Лимит вопросов на сегодня исчерпан. Воспользуйся кнопками пересказа или возвращайся завтра.');
+            return;
+        }
+        if (mb_strlen($question) < self::MIN_QUESTION_LENGTH) {
+            $context->offTopicStreak++;
+            $this->sendBackToMenu($chatId, 'Вопрос не по теме параграфа, либо слишком общий. Воспользуйтесь кнопкой полного пересказа');
+            return;
+        }
         $this->sendText($chatId, 'Думаю…');
         $usageBefore = $this->usage();
         try {
@@ -176,6 +203,9 @@ final class Bot
             $this->sendLlmError($chatId, $e, $userId);
             return;
         }
+        $context->discussCount++;
+        $isOffTopic = preg_match('/^\W*(вопрос не касается темы|слишком общий вопрос)/ui', $answer) === 1;
+        $context->offTopicStreak = $isOffTopic ? $context->offTopicStreak + 1 : 0;
         statsLog('discuss', $context->bookId, $context->paragraphId, $this->usageSince($usageBefore));
         $this->sendLongText($chatId, $answer);
         $this->sendBackToMenu($chatId, 'Задай ещё вопрос или вернись в меню.');
@@ -254,7 +284,7 @@ final class Bot
             return;
         }
 
-        $this->sessions->set($userId, new UserContext('enter_paragraph', $bookId));
+        $this->sessions->set($userId, UserContext::restart($this->sessions->get($userId), 'enter_paragraph', $bookId));
         $this->sendText($chatId, strtr(Keyboards::config()['book']['text'], ['{book}' => $books[$bookId]]));
     }
 
